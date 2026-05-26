@@ -1,0 +1,6 @@
+{
+  "name": "Matatu Route Intelligence Agent",
+  "description": "AI-powered Nairobi transit intelligence platform utilizing crowdsourced and real-time transit knowledge to produce reliable route guidance.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
