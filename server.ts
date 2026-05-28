@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = 8080;
 
 // Initialize Google GenAI if API Key is available
 let ai: GoogleGenAI | null = null;
