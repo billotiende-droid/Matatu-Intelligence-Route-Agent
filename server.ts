@@ -10,8 +10,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 8080;
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const PORT = 8080;
 
 // Initialize Google GenAI if API Key is available
 let ai: GoogleGenAI | null = null;
@@ -668,7 +667,6 @@ app.post("/api/mzee/query", async (req, res) => {
           }
         }
       });
-      await sleep(5000);
 
       const resultText = response.text;
       if (resultText) {
