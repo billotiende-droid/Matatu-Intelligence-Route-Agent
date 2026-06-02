@@ -76,15 +76,39 @@ export default function App() {
   // Conversational Chat with Mzee states and handlers
   const [isMzeeChatOpen, setIsMzeeChatOpen] = useState<boolean>(false);
   const [queryMode, setQueryMode] = useState<'select' | 'chat'>('chat');
-  const [mzeeChatHistory, setMzeeChatHistory] = useState<Array<{ sender: 'user' | 'mzee'; text: string; timestamp: string }>>([
+  
+  interface MzeeChatMessage {
+    sender: 'user' | 'mzee';
+    text: string;
+    timestamp: string;
+    englishTranslation?: string;
+    probabilityScore?: number;
+    totals?: {
+      fare?: number;
+      duration?: number;
+      hops?: number;
+    };
+  }
+
+  const [mzeeChatHistory, setMzeeChatHistory] = useState<MzeeChatMessage[]>([
     {
       sender: 'mzee',
       text: 'Habari Kijana! Mimi ni Mzee, Route Agent wako wa Nairobi. Niambie stesheni unayotoka na unakoenda, au niulize maoni yoyote ya usafiri hapa tunayopitia hivi sasa.',
-      timestamp: new Date().toISOString()
+      englishTranslation: 'Hello young commuter! I am Mzee, your Nairobi route agent. Tell me which station you are starting from and where you are going, or ask me any question about the current traffic situation in town right now.',
+      timestamp: new Date().toISOString(),
+      probabilityScore: 98,
+      totals: { fare: 0, duration: 0, hops: 0 }
     }
   ]);
+  const [translatedMsgIndices, setTranslatedMsgIndices] = useState<number[]>([]);
   const [mzeeChatInput, setMzeeChatInput] = useState<string>("");
   const [mzeeChatLoading, setMzeeChatLoading] = useState<boolean>(false);
+
+  const toggleTranslation = (idx: number) => {
+    setTranslatedMsgIndices(prev => 
+      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+    );
+  };
 
   const handleSendMzeeChatMessage = async (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -93,7 +117,7 @@ export default function App() {
     const userText = mzeeChatInput.trim();
     setMzeeChatInput("");
     
-    const newUserMessage = {
+    const newUserMessage: MzeeChatMessage = {
       sender: 'user' as const,
       text: userText,
       timestamp: new Date().toISOString()
@@ -121,7 +145,10 @@ export default function App() {
         {
           sender: 'mzee' as const,
           text: data.reply || "Mzee yuko shughuli kidogo leo. Hebu jaribu tena hivi sasa.",
-          timestamp: new Date().toISOString()
+          englishTranslation: data.englishTranslation,
+          timestamp: new Date().toISOString(),
+          probabilityScore: data.probabilityScore,
+          totals: data.totals
         }
       ]);
 
@@ -141,6 +168,7 @@ export default function App() {
         }
       ]);
     } finally {
+      mzeeChatLoading && setMzeeChatLoading(false);
       setMzeeChatLoading(false);
     }
   };
@@ -1341,9 +1369,6 @@ export default function App() {
                 {/* Header */}
                 <div className="bg-[#1E3A5F] text-white p-5 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#FAA92C] text-black rounded-xl flex items-center justify-center text-lg font-black shadow-inner">
-                      👴
-                    </div>
                     <div>
                       <h3 className="font-extrabold text-sm tracking-tight">Mzee Intelligent Router</h3>
                       <p className="text-[10px] text-blue-200 font-black uppercase tracking-widest">Nairobi Metropolitan Transit Agent</p>
@@ -1380,13 +1405,61 @@ export default function App() {
                       </div>
                       
                       <div 
-                        className={`p-4 rounded-2xl text-xs leading-relaxed ${
+                        className={`p-4 rounded-2xl text-xs leading-relaxed border transition-all duration-300 ${
                           m.sender === 'user' 
-                            ? 'bg-[#1E3A5F] text-white rounded-tr-none shadow-sm'
-                            : 'bg-white border border-gray-100 text-slate-800 rounded-tl-none shadow-sm'
+                            ? 'bg-[#1E3A5F] border-[#1E3A5F] text-white rounded-tr-none shadow-md'
+                            : 'bg-white border-gray-100 text-slate-800 rounded-tl-none shadow-sm hover:border-gray-200'
                         }`}
                       >
-                        {m.text}
+                        {m.sender === 'mzee' && translatedMsgIndices.includes(idx) && m.englishTranslation ? (
+                          <div className="space-y-1.5 animate-fadeIn">
+                            <span className="inline-flex items-center gap-1 bg-[#1E3A5F]/5 text-[#1E3A5F] text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 select-none">
+                              🇬🇧 English View
+                            </span>
+                            <p className="text-slate-750 font-sans font-medium leading-relaxed italic">
+                              "{m.englishTranslation}"
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-line font-medium leading-relaxed">{m.text}</p>
+                        )}
+
+                        {m.sender === 'mzee' && m.englishTranslation && (
+                          <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => toggleTranslation(idx)}
+                              className="text-[9px] text-slate-500 hover:text-[#1E3A5F] hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/50 font-black uppercase tracking-wider transition duration-150 flex items-center gap-1.5 cursor-pointer select-none"
+                            >
+                              <span>🌐 {translatedMsgIndices.includes(idx) ? "Onyesha Sheng (Original)" : "Translate to English"}</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {m.sender === 'mzee' && (m.probabilityScore !== undefined || m.totals) && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2 items-center text-[11px]">
+                            {m.probabilityScore !== undefined && m.probabilityScore > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-indigo-50 border border-indigo-100 text-[#1E3A5F] px-2 py-0.5 rounded-lg font-black text-[9px] uppercase tracking-wider">
+                                🎯 Prob: {m.probabilityScore}%
+                              </span>
+                            )}
+                            {m.totals && m.totals.fare !== undefined && m.totals.fare > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-600 px-2 py-0.5 rounded-lg font-black text-[9px] uppercase tracking-wider">
+                                💰 Total: KES {m.totals.fare}
+                              </span>
+                            )}
+                            {m.totals && m.totals.duration !== undefined && m.totals.duration > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-150 text-amber-600 px-2 py-0.5 rounded-lg font-black text-[9px] uppercase tracking-wider">
+                                ⏱️ Time: {m.totals.duration}m
+                              </span>
+                            )}
+                            {m.totals && m.totals.hops !== undefined && m.totals.hops > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-purple-50 border border-purple-100 text-purple-600 px-2 py-0.5 rounded-lg font-black text-[9px] uppercase tracking-wider">
+                                🚌 Hops: {m.totals.hops}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

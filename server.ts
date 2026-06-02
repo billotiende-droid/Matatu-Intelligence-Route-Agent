@@ -668,25 +668,37 @@ app.post("/api/mzee/chat", async (req, res) => {
         
         Here is the list of official stages we support:
         ${JSON.stringify(availableStageNames)}
-
+ 
         Current transit scenario: "${currentScenario}"
         Real-time temporal context: "${retrieveTemporalEmbeddings(new Date().toISOString())}"
-
+ 
         Your tasks:
-        1. Formulate a highly engaging, informative, localized response (reply). Be helpful, conversational, and wise.
-        2. Inspect if the user's message is asking for a route, or if they are clarifying their commute. If you detect they are specifying starting and ending locations, extract the exact matched stage names from our official stages list.
-        Provide the extracted "origin" and "destination" in the JSON under "detectedRoute". Keep both fields null if they are NOT specifying a route to calculate, or if you can't confidently find both starting and ending stations.
-
+        1. Formulate a highly engaging, informative, and descriptive localized response (reply) in Mzee's authentic deep Swahili/Sheng Nairobi transit guide dialect.
+        2. Formulate a clear, elegant, and friendly English translation of your reply, preserving all vital details (fares, durations, hops, advisories, stage names) so that non-Swahili speakers can understand it perfectly. Put this under "englishTranslation".
+        3. Inspect if the user's message is asking for a route, or if they are clarifying their commute. If you detect they are specifying starting and ending locations, extract the exact matched stage names from our official stages list.
+        4. Determine a confidence score or probability of route success (probabilityScore) as an integer percentage from 0 to 100 based on the current transit scenario (e.g., congestion, crackdown, rainy day, etc.) and temporal context. If it is a general question, return a confidence rating.
+        5. Calculate the Estimated Totals in numeric fields inside "totals":
+           - "fare": Estimated total fare in KES (number)
+           - "duration": Estimated total duration in minutes (number)
+           - "hops": Number of transit drops/transfers (number)
+ 
         Your output MUST be strict JSON in this format:
         {
-          "reply": "your conversation reply as Mzee",
+          "reply": "your conversation reply as Mzee in authentic Swahili/Sheng",
+          "englishTranslation": "your graceful and complete English translation copy of Mzee's reply",
+          "probabilityScore": 85,
+          "totals": {
+            "fare": 150,
+            "duration": 45,
+            "hops": 2
+          },
           "detectedRoute": {
             "origin": "exact Stage Name from list or null",
             "destination": "exact Stage Name from list or null"
           }
         }
       `;
-
+ 
       const response = await generateContentWithFallback({
         contents: chatPrompt,
         config: {
@@ -695,6 +707,17 @@ app.post("/api/mzee/chat", async (req, res) => {
             type: Type.OBJECT,
             properties: {
               reply: { type: Type.STRING },
+              englishTranslation: { type: Type.STRING },
+              probabilityScore: { type: Type.INTEGER },
+              totals: {
+                type: Type.OBJECT,
+                properties: {
+                  fare: { type: Type.INTEGER },
+                  duration: { type: Type.INTEGER },
+                  hops: { type: Type.INTEGER }
+                },
+                required: ["fare", "duration", "hops"]
+              },
               detectedRoute: {
                 type: Type.OBJECT,
                 properties: {
@@ -704,18 +727,18 @@ app.post("/api/mzee/chat", async (req, res) => {
                 required: ["origin", "destination"]
               }
             },
-            required: ["reply", "detectedRoute"]
+            required: ["reply", "englishTranslation", "probabilityScore", "totals", "detectedRoute"]
           }
         }
       });
-
+ 
       const resultText = response.text;
       if (resultText) {
         const parsed = JSON.parse(resultText);
         let routeResult = null;
         let origin = parsed.detectedRoute?.origin;
         let destination = parsed.detectedRoute?.destination;
-
+ 
         // If stage names are matches
         if (origin && destination && STAGES.some(s => s.name === origin) && STAGES.some(s => s.name === destination)) {
           routeResult = resolveRouteWithAgentLogic(origin, destination);
@@ -724,9 +747,12 @@ app.post("/api/mzee/chat", async (req, res) => {
           destination = localDest;
           routeResult = resolveRouteWithAgentLogic(localOrigin, localDest);
         }
-
+ 
         return res.json({
           reply: parsed.reply,
+          englishTranslation: parsed.englishTranslation || parsed.reply,
+          probabilityScore: parsed.probabilityScore || 85,
+          totals: parsed.totals || { fare: 0, duration: 0, hops: 0 },
           detectedRoute: origin && destination ? { origin, destination } : null,
           routeResult
         });
@@ -735,24 +761,41 @@ app.post("/api/mzee/chat", async (req, res) => {
       console.log("[Status Service] Chat Gemini fallback activated:", error.message || error);
     }
   }
-
+ 
   // Simulated AI local fallback
   let reply = "";
+  let englishTranslation = "";
   let routeResult = null;
   let detectedRoute = null;
-
+  let probabilityScore = 85;
+  let totals = { fare: 0, duration: 0, hops: 0 };
+ 
   if (localOrigin && localDest) {
     detectedRoute = { origin: localOrigin, destination: localDest };
     routeResult = resolveRouteWithAgentLogic(localOrigin, localDest);
-    reply = `Mzee amepata safari yako ya kutoka ${localOrigin} kwenda ${localDest}. Hapa kuna msururu bora wa kupitia, kijana wangu mara moja.`;
+    probabilityScore = Math.round((routeResult.telemetry?.confidence_score || 0.85) * 100);
+    totals = {
+      fare: routeResult.telemetry?.total_estimated_fare || 150,
+      duration: routeResult.hops?.reduce((acc: number, h: any) => acc + h.durationMinutes, 0) || 45,
+      hops: routeResult.telemetry?.hops_count || routeResult.hops?.length || 1
+    };
+    reply = `Mzee amepata safari yako ya kutoka ${localOrigin} kwenda ${localDest}. Safari hii itakugharimu takriban KES ${totals.fare} na kuchukua dakika ${totals.duration} ukitumia mathree ${totals.hops}. Probability ya safari salama kufika kwa wakati bila msongamano ni ${probabilityScore}%, kijana wangu!`;
+    englishTranslation = `Mzee found your trip from ${localOrigin} to ${localDest}. This trip will cost you about KES ${totals.fare} and take ${totals.duration} minutes using ${totals.hops} matatu(s). The probability of a safe, timely ride without heavy traffic jams is ${probabilityScore}%, my friend!`;
   } else if (localOrigin) {
     reply = `Mzee amesikia umeanza safari kutoka ${localOrigin}. Lakini unaelekea wapi haswa? can you clarify?`;
+    englishTranslation = `Mzee heard you are starting your trip from ${localOrigin}. But where exactly are you heading to? Can you clarify?`;
+    probabilityScore = 60;
   } else {
     reply = `Habari kijana! Mimi ni Mzee kutoka Nairobi. Waweza kuniuliza msururu wa kusafiri au kunitumia swali lolote la hapa town! (Mfano: "Kawangware to Githurai" au "Rongai to Nairobi Railways")`;
+    englishTranslation = `Hello young friend! I am Mzee from Nairobi. You can ask me for travel routes or ask me any question about our town! (Example: "Kawangware to Githurai" or "Rongai to Nairobi Railways")`;
+    probabilityScore = 95;
   }
-
+ 
   return res.json({
     reply,
+    englishTranslation,
+    probabilityScore,
+    totals,
     detectedRoute,
     routeResult
   });
