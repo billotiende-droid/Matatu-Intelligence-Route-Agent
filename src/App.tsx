@@ -22,7 +22,8 @@ import {
   Search, 
   Navigation, 
   UserCheck, 
-  RefreshCw
+  RefreshCw,
+  Megaphone
 } from "lucide-react";
 import { Stage, RouteSegment, CrowdsourcedReport, SMSSession, SimulationScenario, RouteQueryResult } from "./types";
 
@@ -71,6 +72,78 @@ export default function App() {
   const [smsSessionState, setSmsSessionState] = useState<string>("AWAITING_ORIGIN_DEST");
   const [smsHistory, setSmsHistory] = useState<Array<{ sender: 'user' | 'mzee'; text: string; timestamp: string }>>([]);
   const [smsSending, setSmsSending] = useState<boolean>(false);
+
+  // Conversational Chat with Mzee states and handlers
+  const [isMzeeChatOpen, setIsMzeeChatOpen] = useState<boolean>(false);
+  const [queryMode, setQueryMode] = useState<'select' | 'chat'>('chat');
+  const [mzeeChatHistory, setMzeeChatHistory] = useState<Array<{ sender: 'user' | 'mzee'; text: string; timestamp: string }>>([
+    {
+      sender: 'mzee',
+      text: 'Habari Kijana! Mimi ni Mzee, Route Agent wako wa Nairobi. Niambie stesheni unayotoka na unakoenda, au niulize maoni yoyote ya usafiri hapa tunayopitia hivi sasa.',
+      timestamp: new Date().toISOString()
+    }
+  ]);
+  const [mzeeChatInput, setMzeeChatInput] = useState<string>("");
+  const [mzeeChatLoading, setMzeeChatLoading] = useState<boolean>(false);
+
+  const handleSendMzeeChatMessage = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    if (!mzeeChatInput.trim() || mzeeChatLoading) return;
+
+    const userText = mzeeChatInput.trim();
+    setMzeeChatInput("");
+    
+    const newUserMessage = {
+      sender: 'user' as const,
+      text: userText,
+      timestamp: new Date().toISOString()
+    };
+    
+    const updatedHistory = [...mzeeChatHistory, newUserMessage];
+    setMzeeChatHistory(updatedHistory);
+    setMzeeChatLoading(true);
+
+    try {
+      const res = await fetch("/api/mzee/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userText,
+          history: updatedHistory.slice(-8)
+        })
+      });
+
+      if (!res.ok) throw new Error("Connection failed");
+      const data = await res.json();
+      
+      setMzeeChatHistory(prev => [
+        ...prev,
+        {
+          sender: 'mzee' as const,
+          text: data.reply || "Mzee yuko shughuli kidogo leo. Hebu jaribu tena hivi sasa.",
+          timestamp: new Date().toISOString()
+        }
+      ]);
+
+      if (data.detectedRoute && data.routeResult) {
+        setOrigin(data.detectedRoute.origin);
+        setDestination(data.detectedRoute.destination);
+        setRoutingResult(data.routeResult);
+      }
+    } catch (err) {
+      console.error(err);
+      setMzeeChatHistory(prev => [
+        ...prev,
+        {
+          sender: 'mzee' as const,
+          text: "Samahani kijana wangu, mtandao imeenda chini kidogo. Hebu uulize tena baada ya mda.",
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setMzeeChatLoading(false);
+    }
+  };
 
   // Map representation UI toggle
   const [activeTab, setActiveTab] = useState<'route' | 'stages' | 'segments'>('route');
@@ -296,13 +369,13 @@ export default function App() {
         </div>
 
         {/* Big Search Capsule Pill Input */}
-        <div className="bg-white rounded-full p-2.5 shadow-xl border border-slate-100 flex items-center md:gap-4 gap-2 max-w-2xl mx-auto w-full group focus-within:ring-2 focus-within:ring-[#1E3A5F]/20 transition-all">
-          <div className="bg-emerald-500 text-white p-3 rounded-full flex items-center justify-center font-bold shadow-md">
+        <div className="bg-white rounded-2xl md:rounded-full p-3 shadow-xl border border-slate-100 flex flex-col md:flex-row items-stretch md:items-center gap-3 max-w-2xl mx-auto w-full group focus-within:ring-2 focus-within:ring-[#1E3A5F]/20 transition-all">
+          <div className="hidden md:flex bg-emerald-500 text-white p-3 rounded-full items-center justify-center font-bold shadow-md self-center">
             <Search className="w-5 h-5" />
           </div>
           
-          <div className="flex-1 grid grid-cols-2 divide-x divide-slate-100 text-slate-800 pr-2">
-            <div className="px-3 flex flex-col justify-center">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100 text-slate-800 md:pr-2 pb-2 md:pb-0 gap-2 md:gap-0">
+            <div className="px-3 flex flex-col justify-center pt-2 md:pt-0">
               <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">From</span>
               <select
                 value={origin}
@@ -310,7 +383,7 @@ export default function App() {
                   setOrigin(e.target.value);
                   handleCalculateRoute(e.target.value, destination);
                 }}
-                className="bg-transparent font-bold text-xs md:text-sm text-slate-800 focus:outline-none w-full cursor-pointer pr-2"
+                className="bg-transparent font-bold text-xs md:text-sm text-slate-800 focus:outline-none w-full cursor-pointer pr-2 pt-0.5"
               >
                 {stages.map(st => (
                   <option key={`min-orig-${st.id}`} value={st.name}>{st.name}</option>
@@ -318,7 +391,7 @@ export default function App() {
               </select>
             </div>
             
-            <div className="px-4 flex flex-col justify-center">
+            <div className="px-3 md:px-4 flex flex-col justify-center pt-2 md:pt-0">
               <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">To</span>
               <select
                 value={destination}
@@ -326,7 +399,7 @@ export default function App() {
                   setDestination(e.target.value);
                   handleCalculateRoute(origin, e.target.value);
                 }}
-                className="bg-transparent font-bold text-xs md:text-sm text-slate-800 focus:outline-none w-full cursor-pointer pr-2"
+                className="bg-transparent font-bold text-xs md:text-sm text-slate-800 focus:outline-none w-full cursor-pointer pr-2 pt-0.5"
               >
                 {stages.map(st => (
                   <option key={`min-dest-${st.id}`} value={st.name}>{st.name}</option>
@@ -337,9 +410,10 @@ export default function App() {
 
           <button
             onClick={() => handleCalculateRoute()}
-            className="bg-slate-900 hover:bg-slate-800 text-white rounded-full p-3 font-bold transition shadow"
+            className="bg-[#1E3A5F] hover:bg-slate-800 text-white rounded-xl md:rounded-full py-3.5 md:p-3 font-bold transition shadow flex items-center justify-center gap-2 md:w-auto shrink-0 uppercase tracking-wider text-xs md:text-base font-black px-6 md:px-3"
             title="Search Route Path"
           >
+            <span className="md:hidden">Get Route Path</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>
@@ -623,7 +697,7 @@ export default function App() {
                       "{rep.description}"
                     </p>
 
-                    <div className="mt-4 pt-3 border-t border-slate-50 flex items-center gap-6 text-slate-400 text-xs font-bold">
+                    <div className="mt-4 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 md:gap-6 text-slate-400 text-xs font-bold">
                       <button 
                         onClick={() => handleVerifyReport(rep.id)}
                         className="flex items-center gap-1.5 hover:text-emerald-500 bg-slate-50 px-3 py-1 rounded-lg hover:bg-emerald-50 transition cursor-pointer"
@@ -642,7 +716,7 @@ export default function App() {
                         <span>Directions</span>
                       </button>
 
-                      <div className="text-[10px] uppercase font-bold tracking-widest text-[#2E8B57] bg-emerald-500/10 px-2 py-0.5 rounded ml-auto">
+                      <div className="text-[10px] uppercase font-bold tracking-widest text-[#2E8B57] bg-emerald-500/10 px-2 py-0.5 rounded sm:ml-auto">
                         Rep {rep.reporterReputation ? rep.reporterReputation.toFixed(2) : "0.75"}
                       </div>
                     </div>
@@ -746,11 +820,11 @@ export default function App() {
       <div id="bold-hustle-wrapper" className="flex-1 w-full max-w-5xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Playful loud overlapping angled title header */}
-        <div className="col-span-12 relative flex flex-col justify-center items-center select-none py-6">
-          <h1 className="text-7xl md:text-8xl font-black italic tracking-tighter text-[#1C2F52] select-all uppercase leading-none transform -skew-x-12 tracking-wide opacity-90">
+        <div className="col-span-12 relative flex flex-col justify-center items-center select-none py-6 overflow-hidden">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl font-black italic tracking-tighter text-[#1C2F52] select-all uppercase leading-none transform -skew-x-12 tracking-wide opacity-90">
             MSHIKE
           </h1>
-          <h1 className="text-7xl md:text-8xl font-black italic tracking-tighter text-emerald-600 uppercase leading-none transform -skew-x-12 tracking-wide opacity-90 -mt-2">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl font-black italic tracking-tighter text-emerald-600 uppercase leading-none transform -skew-x-12 tracking-wide opacity-90 -mt-2">
             MSHIKE
           </h1>
         </div>
@@ -769,9 +843,9 @@ export default function App() {
               </h3>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 items-center mt-6">
-              <div className="flex-1 w-full grid grid-cols-2 gap-2 text-xs font-black text-black bg-white p-2 rounded-xl border border-black uppercase">
-                <div className="px-2">
+            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center mt-6">
+              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-black text-black bg-white p-2 rounded-xl border border-black uppercase divide-y sm:divide-y-0 sm:divide-x divide-black/10">
+                <div className="px-2 pb-2 sm:pb-0">
                   <span className="text-[9px] text-[#2C2F36]/60">FROM</span>
                   <select
                     value={origin}
@@ -783,7 +857,7 @@ export default function App() {
                     ))}
                   </select>
                 </div>
-                <div className="px-2 border-l border-black/30">
+                <div className="px-2 pt-2 sm:pt-0 sm:border-l border-black/30">
                   <span className="text-[9px] text-[#2C2F36]/60">TO</span>
                   <select
                     value={destination}
@@ -799,7 +873,7 @@ export default function App() {
 
               <button 
                 onClick={() => handleCalculateRoute()}
-                className="w-full md:w-auto px-6 py-4 bg-black hover:bg-neutral-900 font-extrabold text-white rounded-xl text-xs uppercase tracking-widest cursor-pointer shadow-[3px_3px_0px_rgba(255,255,255,0.2)] transition"
+                className="w-full md:w-auto px-6 py-4 bg-black hover:bg-neutral-900 font-extrabold text-white rounded-xl text-xs uppercase tracking-widest cursor-pointer shadow-[3px_3px_0px_rgba(255,255,255,0.2)] transition shrink-0"
               >
                 START MY TRIP →
               </button>
@@ -890,7 +964,7 @@ export default function App() {
   };
 
   return (
-    <div id="mzee-global-wrapper" className={`min-h-screen ${currentLayout === 'minimal' ? 'bg-slate-50 text-slate-900' : currentLayout === 'hustle' ? 'bg-[#FAF9F5] text-black' : 'bg-[#F3F4F6] text-[#1E3A5F]'} font-sans flex flex-col transition-colors duration-300 relative`}>
+    <div id="mzee-global-wrapper" className={`w-full max-w-full overflow-x-hidden min-h-screen ${currentLayout === 'minimal' ? 'bg-slate-50 text-slate-900' : currentLayout === 'hustle' ? 'bg-[#FAF9F5] text-black' : 'bg-[#F3F4F6] text-[#1E3A5F]'} font-sans flex flex-col transition-colors duration-300 relative`}>
       
       {/* 1. Header Section */}
       <header id="header-global" className="bg-white border-b border-gray-100 px-6 py-4 flex flex-col lg:flex-row items-center justify-between gap-4 sticky top-0 z-50 shadow-sm">
@@ -913,56 +987,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Layout Switcher Tabs */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-2xl p-1 border border-gray-200 shadow-inner">
-          <button
-            id="layout-tab-bento"
-            onClick={() => setCurrentLayout('bento')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-              currentLayout === 'bento'
-                ? 'bg-[#1E3A5F] text-white shadow-md'
-                : 'text-gray-500 hover:text-[#1E3A5F] hover:bg-white/50'
-            }`}
-          >
-            🍱 Bento (mzee1)
-          </button>
-          <button
-            id="layout-tab-minimal"
-            onClick={() => {
-              setCurrentLayout('minimal');
-              setActiveTab('route');
-            }}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-              currentLayout === 'minimal'
-                ? 'bg-[#1E3A5F] text-white shadow-md'
-                : 'text-gray-500 hover:text-[#1E3A5F] hover:bg-white/50'
-            }`}
-          >
-            ☁️ Air (mzee2)
-          </button>
-          <button
-            id="layout-tab-pulse"
-            onClick={() => setCurrentLayout('pulse')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-              currentLayout === 'pulse'
-                ? 'bg-[#1E3A5F] text-white shadow-md'
-                : 'text-gray-500 hover:text-[#1E3A5F] hover:bg-white/50'
-            }`}
-          >
-            💬 Pulse (mzee3)
-          </button>
-          <button
-            id="layout-tab-hustle"
-            onClick={() => setCurrentLayout('hustle')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-              currentLayout === 'hustle'
-                ? 'bg-amber-500 text-black shadow-md font-extrabold'
-                : 'text-gray-500 hover:text-black hover:bg-white/50'
-            }`}
-          >
-            ⚡ Bold (mzee4)
-          </button>
-        </div>
 
         {/* Global Stats indicators inside header */}
         <div className="flex flex-wrap items-center gap-3">
@@ -989,423 +1013,649 @@ export default function App() {
 
       {currentLayout === 'bento' && (
         <>
-          {/* Mzee1 Premium Landing page Hero banner card exactly styled to mzee1.png guidelines */}
-          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-[#163359] text-white rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-xl border border-blue-900/40">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+          {/* Section A: Viewport-height landing page containing what Mzee is all about */}
+          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 min-h-[calc(100vh-80px)] flex flex-col justify-center py-6 md:py-10 relative">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 bg-[#163359] text-white rounded-3xl md:rounded-[40px] p-6 md:p-12 relative overflow-hidden shadow-2xl border border-blue-900/40">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
               
-              {/* Left Column Text details */}
-              <div className="col-span-12 lg:col-span-8 space-y-5 relative z-10">
-                <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-none text-white font-sans">
-                  Navigate Nairobi <br className="hidden md:inline" /> Like a Local.
-                </h2>
-                <p className="text-sm md:text-base text-blue-100/90 font-medium leading-relaxed max-w-xl">
-                  Mzee uses crowdsourced intelligence to route you through the city, even during crackdowns or rain.
-                </p>
-                <button 
-                  onClick={() => {
-                    const el = document.getElementById('search-dock');
-                    if(el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="bg-[#FAA92C] hover:bg-opacity-95 text-black font-extrabold px-6 py-3.5 rounded-xl transition shadow-lg inline-flex items-center gap-2 text-xs uppercase cursor-pointer"
-                >
-                  <span>Ask Mzee Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Right Column Stats column */}
-              <div className="col-span-12 lg:col-span-4 flex flex-row lg:flex-col gap-4 self-center relative z-10 w-full md:w-auto">
-                <div className="flex-1 bg-white/10 p-5 rounded-2xl border border-white/5 shadow flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-50/10 text-emerald-400 flex items-center justify-center font-extrabold text-sm">
-                    ↗
-                  </div>
-                  <div>
-                    <h4 className="text-2xl font-black italic">120+</h4>
-                    <span className="text-[10px] text-blue-200 font-bold uppercase tracking-wider">Active Hops</span>
-                  </div>
-                </div>
-
-                <div className="flex-1 bg-white/10 p-5 rounded-2xl border border-white/5 shadow flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-400/10 text-red-300 flex items-center justify-center font-extrabold text-sm">
-                    ⚠️
-                  </div>
-                  <div>
-                    <h4 className="text-2xl font-black italic">{reports.length > 0 ? reports.length : 2}</h4>
-                    <span className="text-[10px] text-blue-200 font-bold uppercase tracking-wider">Live Reports</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Simulated Additional Visual Layer Elements for landing page exactly like layout in mzee1.png */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mt-6">
-              {/* Crowdsourced Transit Intel Item Feed */}
-              <div className="md:col-span-8 bg-white rounded-3xl p-6 border border-gray-200 shadow-sm">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
-                  <h3 className="font-bold text-sm text-[#1E3A5F] flex items-center gap-2 uppercase tracking-wider">
-                    <span className="text-emerald-500 animate-pulse">●</span> Crowdsourced Transit Intel
-                  </h3>
-                  <span className="text-[9.5px] font-bold text-gray-400 tracking-wider">LIVE FEED</span>
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3.5 bg-gray-50/55 rounded-xl border border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500 text-black flex items-center justify-center text-xs font-black shadow">🚌</div>
-                      <div>
-                        <h4 className="font-extrabold text-xs text-[#1E3A5F]">Khoja / CBD</h4>
-                        <p className="text-xs text-slate-500 italic mt-0.5">"Traffic at Globe is heavy"</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-gray-400 font-mono font-bold">12:55 AM</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3.5 bg-[#FAF9F5] rounded-xl border border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-xs font-black shadow">🚌</div>
-                      <div>
-                        <h4 className="font-extrabold text-xs text-[#1E3A5F]">Kawangware</h4>
-                        <p className="text-xs text-slate-500 italic mt-0.5">"Buses filling fast"</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-gray-400 font-mono font-bold">12:55 AM</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Side controls */}
-              <div className="md:col-span-4 space-y-4">
-                {/* Quick Actions */}
-                <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
-                  <h4 className="font-extrabold text-xs text-gray-400 uppercase tracking-widest mb-3">Quick Actions</h4>
-                  <div className="space-y-2.5">
-                    <button 
-                      onClick={() => {
-                        const el = document.getElementById('search-dock');
-                        if(el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="w-full text-left p-2.5 hover:bg-gray-50 rounded-xl transition flex items-center justify-between border border-transparent hover:border-gray-100 group cursor-pointer"
-                    >
-                      <div>
-                        <h5 className="font-bold text-xs text-[#1E3A5F]">Direct Navigation</h5>
-                        <p className="text-[10px] text-gray-400 mt-0.5">AI-powered multi-hop routing</p>
-                      </div>
-                      <span className="text-slate-400 group-hover:text-[#1E3A5F] transition font-bold text-xs">→</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const el = document.getElementById('bento-crowdsource');
-                        if(el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="w-full text-left p-2.5 hover:bg-gray-50 rounded-xl transition flex items-center justify-between border border-transparent hover:border-gray-100 group cursor-pointer"
-                    >
-                      <div>
-                        <h5 className="font-bold text-xs text-[#1E3A5F]">Submit Alert</h5>
-                        <p className="text-[10px] text-gray-400 mt-0.5">Share live traffic updates</p>
-                      </div>
-                      <span className="text-slate-400 group-hover:text-[#1E3A5F] transition font-bold text-xs">→</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Rush hour alert */}
-                <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-start gap-3">
-                  <div className="p-2 bg-amber-500 text-black rounded-lg font-black text-xs shrink-0">⏰</div>
-                  <div>
-                    <h5 className="font-black text-xs text-amber-700 uppercase tracking-wide">Rush Hour Alert</h5>
-                    <p className="text-xs text-amber-900 mt-0.5 font-medium leading-relaxed font-sans">Large queues expected soon for Jogoo Rd. Plan accordingly.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Main Bento Frame Container */}
-          <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        {/* 2. SYSTEM SIMULATOR STATUS PANEL (Span 12) */}
-        <section id="bento-scenarios" className="col-span-12 bg-white rounded-3xl p-5 border border-gray-200 shadow-sm">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-sm uppercase tracking-widest text-gray-400 font-bold flex items-center gap-2 mb-1">
-                <Activity className="w-4 h-4 text-[#E9A93D]" /> Environment Scenario Controls
-              </h2>
-              <p className="text-sm text-gray-600">
-                Change dynamic city conditions. Watch route paths, prices & warnings real-time simulate constraints:
-              </p>
-            </div>
-            {/* Action cards to toggle scenarios */}
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              <button
-                id="scenario-btn-normal"
-                onClick={() => handleUpdateScenario("NORMAL")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-xs tracking-wider uppercase transition cursor-pointer ${
-                  currentScenario === "NORMAL"
-                    ? "bg-[#1E3A5F] text-white shadow-md shadow-[#1E3A5F]/20"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-              >
-                ☀️ Normal Transit
-              </button>
-              <button
-                id="scenario-btn-rush"
-                onClick={() => handleUpdateScenario("RUSH_HOUR")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-xs tracking-wider uppercase transition cursor-pointer ${
-                  currentScenario === "RUSH_HOUR"
-                    ? "bg-[#E9A93D] text-white shadow-md shadow-[#E9A93D]/20"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-              >
-                ⏰ Rush Hour Peak
-              </button>
-              <button
-                id="scenario-btn-rain"
-                onClick={() => handleUpdateScenario("RAINY_DAY")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-xs tracking-wider uppercase transition cursor-pointer ${
-                  currentScenario === "RAINY_DAY"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-400/20"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-              >
-                🌧️ Rainy Day Chaos
-              </button>
-              <button
-                id="scenario-btn-crackdown"
-                onClick={() => handleUpdateScenario("CRACKDOWN")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-xs tracking-wider uppercase transition cursor-pointer ${
-                  currentScenario === "CRACKDOWN"
-                    ? "bg-red-600 text-white shadow-md shadow-red-500/10"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-              >
-                👮 Police Operation
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* 3. INTERACTIVE SEARCH CONTROLS DOCK (Span 12) */}
-        <div id="search-dock" className="col-span-12 bg-white rounded-3xl p-5 md:p-6 border border-gray-200 shadow-sm flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <h3 className="font-bold text-lg text-[#1E3A5F] flex items-center gap-2">
-              <Navigation className="w-5 h-5 text-[#2E8B57]" /> Dynamic Route query router
-            </h3>
-            {/* Quick Suggest presets for user tests */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-400 uppercase font-semibold">Commuter Presets:</span>
-              <button 
-                id="preset-kawangware-ruai"
-                onClick={() => selectPreset("Kawangware", "Ruai")}
-                className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-[#1E3A5F] text-xs font-semibold rounded-lg transition"
-              >
-                Kawangware → Ruai (Multi)
-              </button>
-              <button 
-                id="preset-kawangware-cbd"
-                onClick={() => selectPreset("Kawangware", "Kencom/Archives")}
-                className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-[#1E3A5F] text-xs font-semibold rounded-lg transition"
-              >
-                Kawangware → CBD (Direct Route 46)
-              </button>
-              <button 
-                id="preset-cbd-rongai"
-                onClick={() => selectPreset("Railways", "Rongai")}
-                className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-[#1E3A5F] text-xs font-semibold rounded-lg transition"
-              >
-                Railways → Rongai (Route 125)
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-            {/* Origin Input */}
-            <div className="md:col-span-4 relative">
-              <label className="absolute left-3 top-1 text-[10px] uppercase font-bold text-gray-400">Commuting From</label>
-              <select
-                id="origin-select"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                className="w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-[#1E3A5F] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]"
-              >
-                {stages.map(st => (
-                  <option key={`orig-${st.id}`} value={st.name}>{st.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Path connector visual arrow */}
-            <div className="hidden md:flex md:col-span-1 justify-center">
-              <ArrowRight className="w-6 h-6 text-[#2E8B57]" />
-            </div>
-
-            {/* Destination Input */}
-            <div className="md:col-span-4 relative">
-              <label className="absolute left-3 top-1 text-[10px] uppercase font-bold text-gray-400">Commuting To</label>
-              <select
-                id="dest-select"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                className="w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-[#1E3A5F] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]"
-              >
-                {stages.map(st => (
-                  <option key={`dest-${st.id}`} value={st.name}>{st.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Query submit Button */}
-            <div className="md:col-span-3">
-              <button
-                id="ask-mzee-btn"
-                onClick={() => handleCalculateRoute()}
-                disabled={routingLoading}
-                className="w-full bg-[#1E3A5F] hover:bg-opacity-90 text-white font-bold py-3.5 px-6 rounded-xl text-xs tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
-              >
-                {routingLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Mzee Inquiring...</span>
-                  </>
-                ) : (
-                  <>
-                    <Cpu className="w-4 h-4" />
-                    <span>Ask Mzee Route</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-        {/* Seamless Route Results Delivery Panel */}
-        {routingResult && (
-          <div className="col-span-12 bg-white rounded-3xl p-6 border border-gray-200 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-              <div>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2.5 py-1 rounded-full">
-                  ★ Active Route Results
-                </span>
-                <h4 className="text-xl font-black text-[#1E3A5F] mt-1.5">
-                  {origin} to {destination}
-                </h4>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-[#1E3A5F]/5 px-3.5 py-2 rounded-xl text-right">
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Estimated Fare</span>
-                  <span className="text-lg font-black text-[#1E3A5F]">
-                    KES {routingResult?.telemetry?.total_estimated_fare || "150"}
+              {/* Left Column - Mzee Core Definition & Setup */}
+              <div className="col-span-12 lg:col-span-8 flex flex-col justify-between space-y-6 relative z-10">
+                <div className="space-y-4">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3.5 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-normal">
+                    ✨ CROWDSOURCED NAIROBI TRANSIT INTELLIGENCE
                   </span>
-                </div>
-                <div className="bg-[#2E8B57]/5 px-3.5 py-2 rounded-xl text-right">
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Mzee Score</span>
-                  <span className="text-lg font-black text-[#2E8B57]">
-                    {routingResult?.telemetry?.confidence_score ? Math.round(routingResult.telemetry.confidence_score * 100) : 89}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Steps / Hops */}
-              <div className="lg:col-span-8 space-y-3">
-                {routingResult?.hops && routingResult.hops.length > 0 ? (
-                  routingResult.hops.map((hop, idx) => (
-                    <div key={`bento-res-hop-${idx}`} className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                      <div className="w-8 h-8 rounded-full bg-[#1E3A5F]/10 text-[#1E3A5F] flex items-center justify-center font-bold text-xs shrink-0 font-mono">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                          {hop.type === 'transit' ? `Matatu Route ${hop.route || '46'}` : 'Transfer'}
-                        </p>
-                        <p className="font-extrabold text-[#1E3A5F] text-sm">
-                          {hop.from} → {hop.to}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-black text-[#1E3A5F]">KES {hop.fareEstimate}</p>
-                        <p className="text-[10px] text-gray-400">{hop.durationMinutes}m</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-400 italic py-4">No hops generated. Please search above.</p>
-                )}
-              </div>
-
-              {/* Mzee's Advice */}
-              <div className="lg:col-span-4 bg-[#1E3A5F] text-white rounded-2xl p-5 flex flex-col justify-between">
-                <div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#2E8B57] bg-emerald-500/10 px-2 py-1 rounded-md">
-                    Mzee's Transit Advice
-                  </span>
-                  <p className="text-xs italic leading-relaxed text-blue-100 font-medium mt-3">
-                    "{routingResult?.sms_response || "Select your route above to receive Mzee's local advisory."}"
+                  
+                  <h2 className="text-3xl md:text-6xl font-black tracking-tight leading-tight md:leading-none text-white font-sans">
+                    Navigate Nairobi <br className="hidden md:inline" /> Like a Local.
+                  </h2>
+                  
+                  <p className="text-xs md:text-base text-blue-100/90 font-medium leading-relaxed max-w-2xl font-sans">
+                    Mzee is the metropolitan route agent powered by localized conversational intelligence. 
+                    Ask Mzee anything to instantly skip police crackdowns, dodge heavy rush-hour snarls, anticipate fare changes, and route safely through the city.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center text-[10px] font-bold text-blue-200">
-                  <span>Scenario: {currentScenario}</span>
-                  <span>Active</span>
+
+                <div className="pt-2">
+                  <button 
+                    onClick={() => setIsMzeeChatOpen(true)}
+                    className="bg-[#FAA92C] hover:bg-[#faa92c]/90 text-black font-black px-6 md:px-10 py-4 md:py-5 rounded-2xl transition-all hover:scale-[1.02] shadow-xl inline-flex items-center gap-3 text-xs md:text-sm uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>Ask Mzee Now</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Environment Scenario Controls positioned right below the 'Ask Mzee Now' button */}
+                <div className="pt-6 border-t border-white/10 space-y-3.5 w-full">
+                  <div>
+                    <h3 className="text-[10px] uppercase tracking-widest text-[#FAA92C] font-black flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-[#FAA92C]" /> Real-time Scenario Configurator
+                    </h3>
+                    <p className="text-xs text-blue-200/95 mt-1">
+                      Choose city conditions below to dynamically simulate mathree routes and fares:
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2.5">
+                    <button
+                      id="scenario-btn-normal"
+                      onClick={() => handleUpdateScenario("NORMAL")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                        currentScenario === "NORMAL"
+                          ? "bg-emerald-500 text-white shadow-lg"
+                          : "bg-white/10 hover:bg-white/15 text-white/90"
+                      }`}
+                    >
+                      ☀️ Normal (70 KES)
+                    </button>
+                    <button
+                      id="scenario-btn-rush"
+                      onClick={() => handleUpdateScenario("RUSH_HOUR")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                        currentScenario === "RUSH_HOUR"
+                          ? "bg-[#E9A93D] text-black shadow-lg"
+                          : "bg-white/10 hover:bg-white/15 text-white/90"
+                      }`}
+                    >
+                      ⏰ Rush Hour (+30 KES)
+                    </button>
+                    <button
+                      id="scenario-btn-rain"
+                      onClick={() => handleUpdateScenario("RAINY_DAY")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                        currentScenario === "RAINY_DAY"
+                          ? "bg-blue-500 text-white shadow-lg"
+                          : "bg-white/10 hover:bg-white/15 text-white/90"
+                      }`}
+                    >
+                      🌧️ Rain Chaos (2x Fare)
+                    </button>
+                    <button
+                      id="scenario-btn-crackdown"
+                      onClick={() => handleUpdateScenario("CRACKDOWN")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                        currentScenario === "CRACKDOWN"
+                          ? "bg-red-500 text-white shadow-lg"
+                          : "bg-white/10 hover:bg-white/15 text-white/90"
+                      }`}
+                    >
+                      👮 Crackdowns (NTSA)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Status Stats & Live Alert Panel */}
+              <div className="col-span-12 lg:col-span-4 flex flex-col justify-between gap-6 w-full relative z-10">
+                <div className="space-y-4">
+                  <div className="bg-white/5 border border-white/10 p-5 rounded-3xl shadow-md backdrop-blur-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-black text-lg select-none">
+                      🧭
+                    </div>
+                    <div>
+                      <h4 className="text-3xl font-black italic tracking-tight">{stages.length > 0 ? stages.length : "14"}</h4>
+                      <span className="text-[9px] text-blue-200 font-extrabold uppercase tracking-widest">Monitored Stations</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 p-5 rounded-3xl shadow-md backdrop-blur-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-[#FAA92C] flex items-center justify-center font-black text-lg select-none">
+                      ⚡
+                    </div>
+                    <div>
+                      <h4 className="text-3xl font-black italic tracking-tight">{reports.length}</h4>
+                      <span className="text-[9px] text-blue-200 font-extrabold uppercase tracking-widest">Active Commuter Reports</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Static Live Alert Box */}
+                <div className="bg-black/35 border border-blue-900/40 p-6 rounded-3xl space-y-3">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                    <span className="font-extrabold uppercase tracking-widest text-[9.5px]">LIVE SCENARIO WARNING</span>
+                  </div>
+                  <h4 className="font-black text-sm text-white">Nairobi Metropolitan Snarls</h4>
+                  <p className="text-xs text-blue-100/80 font-sans leading-relaxed">
+                    {currentScenario === 'NORMAL' 
+                      ? "Normal operations across most sectors. Safaricom and AT connections operating with standard latency." 
+                      : `Alert: Current ${currentScenario} parameters are actively overriding baseline fares and route security criteria.`
+                    }
+                  </p>
                 </div>
               </div>
             </div>
+
+            {/* Scroll Down Hint Anchor */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-70 select-none animate-bounce">
+              <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Scroll Down for Route Insights</span>
+              <span className="text-slate-400">↓</span>
+            </div>
+          </div>
+
+          {/* Section B: Scrollable Core Transit Insights Frame */}
+          <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 border-t border-gray-100">
+            
+            {/* Left Main Insights Area (Routes & Segments) Elevated to Top of Grid */}
+            <div className="col-span-12 lg:col-span-8 space-y-8">
+              
+              {/* 1. ACTIVE ROUTE RESULTS (Moved directly to the absolute top of the scroll info) */}
+              {routingResult ? (
+                <div id="bento-route-results" className="bg-white rounded-3xl p-6 border border-gray-200 shadow-md space-y-6 animate-fade-in-up">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest select-none">
+                        ★ ACTIVE ROUTE DELIVERY
+                      </span>
+                      <h4 className="text-2xl font-black text-[#1E3A5F] tracking-tight mt-2 flex items-center gap-2">
+                        <span>{origin}</span>
+                        <span className="text-gray-300 font-light">to</span>
+                        <span>{destination}</span>
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-[#1E3A5F]/5 px-4 py-2.5 rounded-2xl text-right">
+                        <span className="text-[9px] uppercase text-gray-400 font-extrabold block tracking-wide">ESTIMATED FARE</span>
+                        <span className="text-xl font-black text-[#1E3A5F]">
+                          KES {routingResult?.telemetry?.total_estimated_fare || "150"}
+                        </span>
+                      </div>
+                      <div className="bg-[#2E8B57]/5 px-4 py-2.5 rounded-2xl text-right">
+                        <span className="text-[9px] uppercase text-gray-400 font-extrabold block tracking-wide">MZEE SCORE</span>
+                        <span className="text-xl font-black text-[#2E8B57]">
+                          {routingResult?.telemetry?.confidence_score ? Math.round(routingResult.telemetry.confidence_score * 100) : 92}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    {/* Hops Steps list */}
+                    <div className="md:col-span-7 space-y-3">
+                      <h5 className="text-[10px] uppercase font-black tracking-widest text-[#1E3A5F]">COMMUTING STEP-BY-STEP</h5>
+                      {routingResult?.hops && routingResult.hops.length > 0 ? (
+                        routingResult.hops.map((hop, idx) => (
+                          <div key={`bento-res-hop-${idx}`} className="flex items-center gap-4 bg-gray-50/75 p-4 rounded-2xl border border-gray-100 hover:border-gray-200 transition">
+                            <div className="w-8 h-8 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[9px] text-[#2E8B57] font-black uppercase tracking-wide">
+                                {hop.type === 'transit' ? `Matatu Route ${hop.route || '46'}` : 'Transfer walk'}
+                              </p>
+                              <p className="font-extrabold text-[#1E3A5F] text-sm leading-tight">
+                                {hop.from} → {hop.to}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-xs font-black text-slate-800">KES {hop.fareEstimate}</p>
+                              <p className="text-[10px] text-gray-450 font-bold">{hop.durationMinutes}m duration</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-400 italic py-2">No intermediate hops generated.</p>
+                      )}
+                    </div>
+
+                    {/* Mzee's local advisory & Google Map embed iframe */}
+                    <div className="md:col-span-5 space-y-4">
+                      {/* Mzee Advice */}
+                      <div className="bg-[#1E3A5F] text-white rounded-2xl p-5 shadow-inner flex flex-col justify-between">
+                        <div>
+                          <span className="text-[8.5px] font-black uppercase tracking-widest text-[#FAA92C] bg-[#FAA92C]/10 px-2 py-1 rounded-md">
+                            Mzee's Local Advisory
+                          </span>
+                          <p className="text-xs italic leading-relaxed text-blue-50/90 font-medium mt-3 leading-loose font-sans">
+                            "{routingResult?.sms_response || "Get advice from chatbot."}"
+                          </p>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center text-[9px] font-extrabold text-blue-200">
+                          <span>Scenario: {currentScenario}</span>
+                          <span>STREET LIVE</span>
+                        </div>
+                      </div>
+
+                      {/* Embed Map Directions */}
+                      <div className="overflow-hidden rounded-2xl border border-gray-100 shadow-sm">
+                        {GOOGLE_MAPS_KEY ? (
+                          <iframe
+                            title="Interactive Matatu Roadmap"
+                            width="100%"
+                            height="160"
+                            style={{ border: 0 }}
+                            loading="lazy"
+                            src={`https://www.google.com/maps/embed/v1/directions?key=${GOOGLE_MAPS_KEY}&origin=${encodeURIComponent(origin + " Nairobi")}&destination=${encodeURIComponent(destination + " Nairobi")}&mode=transit`}
+                          />
+                        ) : (
+                          <div className="bg-slate-100 py-6 px-4 text-center">
+                            <span className="text-xs text-slate-500 font-bold font-mono">Sandbox Street Map Connected</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div id="bento-no-route" className="bg-[#FAF9F5] rounded-3xl p-8 border border-dashed border-gray-300 text-center space-y-3">
+                  <div className="w-12 h-12 bg-white rounded-2xl shadow-sm text-lg flex items-center justify-center mx-auto">💬</div>
+                  <h4 className="font-extrabold text-[#1E3A5F] text-base">No active route calculation selected</h4>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                    Click the <strong className="text-slate-600 hover:underline cursor-pointer" onClick={() => setIsMzeeChatOpen(true)}>"Ask Mzee Now"</strong> button above to open the AI conversation panel, specify your start/exit points, and receive live routing analytics.
+                  </p>
+                </div>
+              )}
+
+              {/* 2. BASELINE TRANSIT SEGMENTS GRID (Moved much higher up as well) */}
+              <section id="bento-segments" className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 border-b border-gray-50 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-base text-[#1E3A5F] flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-emerald-600" /> Baseline Transit Schedule Segments
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Static baseline timetable compiled across Nairobi Met Sacco structures:
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <span className="bg-[#1E3A5F]/5 text-[#1E3A5F] text-[9.5px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wide">
+                      Segments: {segments.length}
+                    </span>
+                    <span className="bg-[#2E8B57]/10 text-[#2E8B57] text-[9.5px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wide">
+                      Verified: {stages.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-gray-400 uppercase text-[9.5px] font-black tracking-widest">
+                        <th className="py-3 px-2">Origin Station</th>
+                        <th className="py-3 px-2">Destination Station</th>
+                        <th className="py-3 px-2 text-center">Route</th>
+                        <th className="py-3 px-2 text-center">Base KES</th>
+                        <th className="py-3 px-2 text-center">Typical Time</th>
+                        <th className="py-3 px-2">SACCO operators</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 font-semibold text-[#1E3A5F]">
+                      {segments.map(seg => (
+                        <tr key={seg.id} className="hover:bg-gray-50/50 transition duration-100">
+                          <td className="py-3 px-2 font-bold">{seg.origin}</td>
+                          <td className="py-3 px-2 font-bold">{seg.destination}</td>
+                          <td className="py-3 px-2 text-center">
+                            <span className="bg-[#1E3A5F]/5 px-2.5 py-1 rounded-md font-bold text-[#1E3A5F]">
+                              {seg.routeNumber}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-center text-emerald-600 font-extrabold">KES {seg.baseFare}</td>
+                          <td className="py-3 px-2 text-center text-slate-500 font-bold">{seg.typicalDurationMinutes} mins</td>
+                          <td className="py-3 px-2 text-slate-500 text-[11px] font-normal">{seg.operator}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            {/* Right Side Sidebar Panel - Crowdsourced alerts Feed & Submission */}
+            <div id="bento-right-sidebar" className="col-span-12 lg:col-span-4 space-y-6">
+              
+              {/* Crowdsourced Transit Live Reports list */}
+              <div id="bento-live-reports" className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                  <h4 className="font-extrabold text-sm uppercase text-[#1E3A5F] tracking-wider flex items-center gap-2">
+                    <span className="text-emerald-500 animate-pulse">●</span> Live Commuter Feed
+                  </h4>
+                  <span className="text-[9px] font-black text-gray-400 font-mono">NBO_TRANSIT_LIVE</span>
+                </div>
+
+                <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
+                  {reports.map((rep) => (
+                    <div key={`bento-sidebar-rep-${rep.id}`} className="p-3 bg-gray-50/85 hover:bg-gray-50 border border-gray-100 rounded-2xl transition">
+                      <div className="flex justify-between items-center mb-1 text-xs">
+                        <span className="font-bold text-[#1E3A5F]">{rep.stage}</span>
+                        <span className="text-[9px] text-gray-400 font-mono font-bold">
+                          {new Date(rep.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 italic">"{rep.description}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit Transit Alert / Upvote */}
+              <div id="bento-crowdsource" className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-[#1E3A5F] border-b border-gray-55 pb-3">
+                  <Megaphone className="w-5 h-5 text-[#FAA92C]" />
+                  <h4 className="font-extrabold text-xs uppercase tracking-widest text-[#1E3A5F]">Report Road Update</h4>
+                </div>
+                
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newIntelMsg.trim()) return;
+                    setSubmittingIntel(true);
+                    try {
+                      const res = await fetch("/api/intel/report", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          stage: newIntelStage,
+                          description: newIntelMsg,
+                          status: newIntelStatus,
+                        }),
+                      });
+                      if (res.ok) {
+                        const added = await res.json();
+                        setReports(prev => [added.report, ...prev]);
+                        setNewIntelMsg("");
+                        setIntelSuccess(true);
+                        setTimeout(() => setIntelSuccess(false), 3000);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setSubmittingIntel(false);
+                    }
+                  }} 
+                  className="space-y-3"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-400 font-black uppercase tracking-wider block">Target Stage</label>
+                    <select
+                      value={newIntelStage}
+                      onChange={(e) => setNewIntelStage(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-gray-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#1E3A5F]"
+                    >
+                      {stages.map(s => (
+                        <option key={`intel-st-${s.id}`} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-400 font-black uppercase tracking-wider block">Stage Status</label>
+                    <select
+                      value={newIntelStatus}
+                      onChange={(e) => setNewIntelStatus(e.target.value as any)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-gray-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#1E3A5F]"
+                    >
+                      <option value="clear">Clear Path (Standard fares)</option>
+                      <option value="congested">Heavy Snarl (Typical Delay)</option>
+                      <option value="crackdown">Police Crackdown (Alert)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-400 font-black uppercase tracking-wider block">Description Message</label>
+                    <textarea
+                      required
+                      value={newIntelMsg}
+                      onChange={(e) => setNewIntelMsg(e.target.value)}
+                      placeholder="e.g. 'Globe traffic heavy but flow continues'"
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-gray-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#1E3A5F] h-16 min-h-[60px]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingIntel}
+                    className="w-full bg-[#1E3A5F] hover:bg-opacity-95 text-white font-black text-[11px] uppercase tracking-wider py-3 px-4 rounded-xl transition cursor-pointer disabled:opacity-50"
+                  >
+                    {submittingIntel ? "Publishing Intel..." : "Publish Intel Update"}
+                  </button>
+
+                  {intelSuccess && (
+                    <p className="text-[10px] text-[#2E8B57] font-black uppercase text-center">Intel successfully broadcasted!</p>
+                  )}
+                </form>
+              </div>
+
+            </div>
+
+          </main>
+
+          {/* Conversational Mzee Chat Modal Dialog - Opens on "Ask Mzee Now" */}
+          {isMzeeChatOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white w-full max-w-2xl rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col h-[85vh] md:h-[75vh]">
+                
+                {/* Header */}
+                <div className="bg-[#1E3A5F] text-white p-5 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#FAA92C] text-black rounded-xl flex items-center justify-center text-lg font-black shadow-inner">
+                      👴
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm tracking-tight">Mzee Intelligent Router</h3>
+                      <p className="text-[10px] text-blue-200 font-black uppercase tracking-widest">Nairobi Metropolitan Transit Agent</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setIsMzeeChatOpen(false)}
+                    className="p-2 text-white/75 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer font-bold text-lg"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Message list area */}
+                <div className="flex-1 overflow-y-auto p-5 bg-slate-50/50 flex flex-col gap-4">
+                  {mzeeChatHistory.map((m, idx) => (
+                    <div 
+                      key={`modal-mzee-chat-bubble-${idx}`} 
+                      className={`flex flex-col gap-1 max-w-[85%] ${m.sender === 'user' ? 'self-end' : 'self-start'}`}
+                    >
+                      <div className="flex items-center gap-1.5 px-0.5">
+                        {m.sender === 'mzee' ? (
+                          <div className="bg-emerald-600 font-sans text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm select-none">
+                            Mzee Agent
+                          </div>
+                        ) : (
+                          <div className="bg-blue-600 font-sans text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 shadow-sm select-none">
+                            Commuter
+                          </div>
+                        )}
+                        <span className="text-[9px] text-gray-400 font-bold font-mono">
+                          {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      
+                      <div 
+                        className={`p-4 rounded-2xl text-xs leading-relaxed ${
+                          m.sender === 'user' 
+                            ? 'bg-[#1E3A5F] text-white rounded-tr-none shadow-sm'
+                            : 'bg-white border border-gray-100 text-slate-800 rounded-tl-none shadow-sm'
+                        }`}
+                      >
+                        {m.text}
+                      </div>
+                    </div>
+                  ))}
+                  {mzeeChatLoading && (
+                    <div className="flex flex-col gap-1 self-start">
+                      <div className="bg-emerald-600 font-sans text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 select-none animate-pulse">
+                        Mzee Agent
+                      </div>
+                      <div className="p-3 bg-white border border-gray-100 text-gray-500 rounded-2xl rounded-tl-none flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-gray-450 rounded-full animate-bounce"></span>
+                        <span className="w-1.5 h-1.5 bg-gray-450 rounded-full animate-bounce delay-100"></span>
+                        <span className="w-1.5 h-1.5 bg-gray-450 rounded-full animate-bounce delay-200"></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Suggestions dock */}
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center shrink-0 overflow-x-auto scrollbar-none gap-2 select-none">
+                  <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider shrink-0">Tap to Ask:</span>
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-none whitespace-nowrap">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setMzeeChatInput("Kawangware to Kencom/Archives");
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-gray-100 text-[#1E3A5F] text-[10px] font-bold rounded-lg border border-gray-200 transition shrink-0"
+                    >
+                      "Kawangware to Kencom"
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setMzeeChatInput("How do I get from Railways to Rongai?");
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-gray-100 text-[#1E3A5F] text-[10px] font-bold rounded-lg border border-gray-200 transition shrink-0"
+                    >
+                      "Railways to Rongai"
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setMzeeChatInput("What is the path from Githurai to CBD?");
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-gray-100 text-[#1E3A5F] text-[10px] font-bold rounded-lg border border-gray-200 transition shrink-0"
+                    >
+                      "Githurai to CBD"
+                    </button>
+                  </div>
+                </div>
+
+                {/* Input action bar */}
+                <form onSubmit={handleSendMzeeChatMessage} className="p-4 border-t border-gray-100 bg-white flex gap-3 shrink-0">
+                  <input
+                    type="text"
+                    value={mzeeChatInput}
+                    onChange={(e) => setMzeeChatInput(e.target.value)}
+                    placeholder="Ask Mzee route advice or type: 'Kawangware to Ruai'..."
+                    disabled={mzeeChatLoading}
+                    className="flex-grow bg-slate-50 border border-gray-200 rounded-xl px-4 py-3.5 text-xs font-semibold text-slate-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E3A5F] disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={mzeeChatLoading || !mzeeChatInput.trim()}
+                    className="bg-[#1E3A5F] hover:bg-opacity-95 disabled:opacity-50 text-white font-extrabold px-6 py-3.5 rounded-xl text-xs uppercase tracking-wider transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Send</span>
+                  </button>
+                </form>
+
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+
+      {/* Floating Layout Selector Menu in Bottom Right */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3 select-none">
+        {isLayersMenuOpen && (
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 w-56 flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="px-2 py-1 border-b border-gray-100 mb-1 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Select Theme Layer</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            </div>
+            
+            <button
+              onClick={() => {
+                setCurrentLayout('bento');
+                setIsLayersMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                currentLayout === 'bento'
+                  ? 'bg-[#1E3A5F] text-white shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>🍱 Bento (mzee1)</span>
+              {currentLayout === 'bento' && <span className="text-[10px]">●</span>}
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentLayout('minimal');
+                setActiveTab('route');
+                setIsLayersMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                currentLayout === 'minimal'
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>☁️ Air (mzee2)</span>
+              {currentLayout === 'minimal' && <span className="text-[10px]">●</span>}
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentLayout('pulse');
+                setIsLayersMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                currentLayout === 'pulse'
+                  ? 'bg-blue-900 text-white shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>💬 Pulse (mzee3)</span>
+              {currentLayout === 'pulse' && <span className="text-[10px]">●</span>}
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentLayout('hustle');
+                setIsLayersMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                currentLayout === 'hustle'
+                  ? 'bg-amber-500 text-black shadow-sm font-black'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>⚡ Bold (mzee4)</span>
+              {currentLayout === 'hustle' && <span className="text-[10px]">●</span>}
+            </button>
           </div>
         )}
 
-        {/* 11. KNOWLEDGE BASE ROUTE SEGMENTS EXPLORER (Span 12) */}
-        <section id="bento-segments" className="col-span-12 bg-white rounded-3xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
-            <div>
-              <h3 className="font-bold text-lg text-[#1E3A5F] flex items-center gap-2">
-                <Layers className="w-5 h-5 text-[#1E3A5F]" /> Baseline Transit Segments Grid
-              </h3>
-              <p className="text-xs text-gray-500">
-                Baseline data compiled by independent transport operators in the Nairobi Metropolitan Transit Authority (without GTFS fallback):
-              </p>
-            </div>
-            
-            <div className="flex gap-2">
-              <span className="bg-[#1E3A5F]/5 text-[#1E3A5F] text-[10px] font-bold px-3 py-1.5 rounded-lg">
-                Total Segments: {segments.length}
-              </span>
-              <span className="bg-[#2E8B57]/10 text-[#2E8B57] text-[10px] font-bold px-3 py-1.5 rounded-lg">
-                Verified Stages: {stages.length}
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-400 uppercase text-[10px] font-extrabold tracking-wider">
-                  <th className="py-3 px-2">Origin Stage</th>
-                  <th className="py-3 px-2">Destination Stage</th>
-                  <th className="py-3 px-2 text-center">Route No</th>
-                  <th className="py-3 px-2 text-center">Baseline Fare</th>
-                  <th className="py-3 px-2 text-center">Est. Time</th>
-                  <th className="py-3 px-2">Major Operator Sacco</th>
-                  <th className="py-3 px-2">Commuter Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 font-medium text-gray-700">
-                {segments.map(seg => (
-                  <tr key={seg.id} className="hover:bg-gray-50/50 transition duration-100">
-                    <td className="py-3 px-2 font-bold text-[#1E3A5F]">{seg.origin}</td>
-                    <td className="py-3 px-2 font-bold text-[#1E3A5F]">{seg.destination}</td>
-                    <td className="py-3 px-2 text-center"><span className="bg-[#1E3A5F]/5 px-2 py-0.5 rounded font-bold text-[#1E3A5F]">{seg.routeNumber}</span></td>
-                    <td className="py-3 px-2 text-center text-[#2E8B57] font-black">KES {seg.baseFare}</td>
-                    <td className="py-3 px-2 text-center font-bold">{seg.typicalDurationMinutes} mins</td>
-                    <td className="py-3 px-2 text-[#1E3A5F] font-semibold">{seg.operator}</td>
-                    <td className="py-3 px-2 text-gray-500 italic text-[11px] font-medium">{seg.notes || "Standard path connection"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
-    </>
-  )}
+        {/* The Action Button */}
+        <button
+          onClick={() => setIsLayersMenuOpen(!isLayersMenuOpen)}
+          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+            isLayersMenuOpen 
+              ? 'bg-rose-500 hover:bg-rose-600 rotate-90 duration-300' 
+              : 'bg-[#1E3A5F] hover:bg-[#1E3A5F]/95'
+          }`}
+          title="Switch Mzee Theme Layers"
+        >
+          <Layers className="w-6 h-6" />
+        </button>
+      </div>
 
       {/* Footer system bar */}
       <footer id="footer-bento" className="bg-white border-t border-gray-200 mt-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest gap-2">
