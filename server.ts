@@ -89,7 +89,18 @@ const STAGES: Stage[] = [
   { id: "ruai", name: "Ruai Stage", lat: -1.2721, lng: 36.9831, aliases: ["Ruai", "Ruai Center", "Ruai bypass"] },
   { id: "githurai", name: "Githurai 45", lat: -1.2069, lng: 36.9080, aliases: ["Githurai", "Githurai 45 Stage", "45"] },
   { id: "kayole", name: "Kayole Stage", lat: -1.2891, lng: 36.9048, aliases: ["Kayole", "Soweto", "Masimba"] },
-  { id: "rongai", name: "Rongai Stage", lat: -1.3972, lng: 36.7145, aliases: ["Rongai", "Ronga", "Tuskys Rongai", "Maasai Lodge"] }
+  { id: "rongai", name: "Rongai Stage", lat: -1.3972, lng: 36.7145, aliases: ["Rongai", "Ronga", "Tuskys Rongai", "Maasai Lodge"] },
+  { id: "westlands", name: "Westlands Stage", lat: -1.2625, lng: 36.8041, aliases: ["Westlands", "Westy", "Sarit Centre", "Westlands Stage"] },
+  { id: "kangemi", name: "Kangemi Stage", lat: -1.2647, lng: 36.7478, aliases: ["Kangemi", "Uthiru", "Kinoo", "Kangemi Stage"] },
+  { id: "kikuyu", name: "Kikuyu Stage", lat: -1.2483, lng: 36.6669, aliases: ["Kikuyu", "Kikuyu Town", "Kikuyu Stage"] },
+  { id: "karen", name: "Karen Stage", lat: -1.3201, lng: 36.7050, aliases: ["Karen", "Karen Junction", "Karen Triangle", "Karen Stage"] },
+  { id: "ngong", name: "Ngong Town Stage", lat: -1.3621, lng: 36.6565, aliases: ["Ngong", "Ngong Town", "Ngong Stage"] },
+  { id: "buruburu", name: "Buruburu Stage", lat: -1.2844, lng: 36.8732, aliases: ["Buruburu", "Buruburu Phase 5", "Buru", "Buruburu Stage"] },
+  { id: "embakasi", name: "Embakasi Stage", lat: -1.3142, lng: 36.8992, aliases: ["Embakasi", "Pipeline", "Kasia", "Fedha", "Embakasi Stage"] },
+  { id: "jkia", name: "JKIA Stage", lat: -1.3256, lng: 36.9277, aliases: ["JKIA", "Nairobi Airport", "Jomo Kenyatta Airport", "JKIA Stage"] },
+  { id: "kiambu", name: "Kiambu Stage", lat: -1.1667, lng: 36.8333, aliases: ["Kiambu", "Kiambu Town", "Kiambu Stage"] },
+  { id: "kasarani", name: "Kasarani Stage", lat: -1.2225, lng: 36.8972, aliases: ["Kasarani", "Mwiki", "Roysambu", "Kasarani Stage"] },
+  { id: "muthaiga", name: "Muthaiga Stage", lat: -1.2555, lng: 36.8378, aliases: ["Muthaiga", "Pangani", "Muthaiga Stage"] }
 ];
 
 const ROUTE_SEGMENTS: RouteSegment[] = [
@@ -107,7 +118,32 @@ const ROUTE_SEGMENTS: RouteSegment[] = [
   // CBD -> Other places
   { id: "cbd-githurai", origin: "Accra Road", destination: "Githurai 45", routeNumber: "45", baseFare: 60, typicalDurationMinutes: 30, operator: "Githurai Travelers (45 Sacco)" },
   { id: "cbd-kayole", origin: "Kencom/Archives", destination: "Kayole Stage", routeNumber: "19C", baseFare: 70, typicalDurationMinutes: 40, operator: "Pinpoint Sacco / Double M", notes: "Jogoo Rd route, heavy rush hour delays." },
-  { id: "cbd-rongai", origin: "Railways Stage", destination: "Rongai Stage", routeNumber: "125", baseFare: 100, typicalDurationMinutes: 55, operator: "Oromats Sacco / Starbus", notes: "Mbagathi Way -> Langata Rd. Infamous for loud mathrees and police checks." }
+  { id: "cbd-rongai", origin: "Railways Stage", destination: "Rongai Stage", routeNumber: "125", baseFare: 100, typicalDurationMinutes: 55, operator: "Oromats Sacco / Starbus", notes: "Mbagathi Way -> Langata Rd. Infamous for loud mathrees and police checks." },
+
+  // Added routes from Tuko news index of nairobi matatu routes:
+  // CBD -> Westlands -> Kangemi -> Kikuyu
+  { id: "cbd-westlands", origin: "Kencom/Archives", destination: "Westlands Stage", routeNumber: "23", baseFare: 50, typicalDurationMinutes: 15, operator: "Super Metro / KB-Sacco" },
+  { id: "westlands-kangemi", origin: "Westlands Stage", destination: "Kangemi Stage", routeNumber: "23", baseFare: 30, typicalDurationMinutes: 12, operator: "Super Metro / KBS" },
+  { id: "kangemi-kikuyu", origin: "Kangemi Stage", destination: "Kikuyu Stage", routeNumber: "2", baseFare: 50, typicalDurationMinutes: 20, operator: "Kikuyu Sacco" },
+
+  // Karen / Ngong Corridor
+  { id: "cbd-karen", origin: "Railways Stage", destination: "Karen Stage", routeNumber: "24", baseFare: 80, typicalDurationMinutes: 35, operator: "COOP Trans Sacco / KBS" },
+  { id: "karen-ngong", origin: "Karen Stage", destination: "Ngong Town Stage", routeNumber: "111", baseFare: 50, typicalDurationMinutes: 20, operator: "Ngong Metro" },
+  { id: "cbd-ngong", origin: "Railways Stage", destination: "Ngong Town Stage", routeNumber: "111", baseFare: 100, typicalDurationMinutes: 52, operator: "Ngong Travellers Sacco" },
+
+  // Eastlands Corridor (Buruburu)
+  { id: "cbd-buruburu", origin: "Railways Stage", destination: "Buruburu Stage", routeNumber: "58", baseFare: 70, typicalDurationMinutes: 30, operator: "Double M / Mwamba Sacco" },
+
+  // JKIA / Embakasi Corridor
+  { id: "cbd-embakasi", origin: "Kencom/Archives", destination: "Embakasi Stage", routeNumber: "34", baseFare: 80, typicalDurationMinutes: 42, operator: "Citi Hoppa / KBS" },
+  { id: "embakasi-jkia", origin: "Embakasi Stage", destination: "JKIA Stage", routeNumber: "34", baseFare: 40, typicalDurationMinutes: 15, operator: "Citi Hoppa" },
+
+  // Kiambu Road
+  { id: "cbd-kiambu", origin: "Accra Road", destination: "Kiambu Stage", routeNumber: "100", baseFare: 80, typicalDurationMinutes: 32, operator: "Kiambu Safaris Sacco" },
+
+  // Thika Road Corridor (Kasarani etc.)
+  { id: "cbd-kasarani", origin: "Accra Road", destination: "Kasarani Stage", routeNumber: "44", baseFare: 60, typicalDurationMinutes: 25, operator: "Kasarani Travellers" },
+  { id: "ngara-kasarani", origin: "Ngara Stage", destination: "Kasarani Stage", routeNumber: "44", baseFare: 40, typicalDurationMinutes: 15, operator: "Kasarani Sacco" }
 ];
 
 // Seed active Crowdsourced Reports
