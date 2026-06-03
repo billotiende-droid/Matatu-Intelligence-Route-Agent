@@ -1,5 +1,7 @@
 # Matatu Route Intelligence Agent (Mzee Intelligent Router)
 
+🖥️ **Live Application link**: [https://matatu-route-intelligence-agent-771815273294.europe-west2.run.app](https://matatu-route-intelligence-agent-771815273294.europe-west2.run.app)
+
 An AI-powered transit intelligence platform designed to aid commuters and planners navigating Nairobi's intricate public transportation network. The platform features **Mzee**, an intelligent, sheng/swahili-fluent routing companion that integrates transit timetables, real-time crowdsourcing, and climate/social delay parameters.
 
 ---
