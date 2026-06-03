@@ -26,6 +26,7 @@ import {
   Megaphone
 } from "lucide-react";
 import { Stage, RouteSegment, CrowdsourcedReport, SMSSession, SimulationScenario, RouteQueryResult } from "./types";
+import InteractiveTransitMap from "./components/InteractiveTransitMap";
 
 export default function App() {
   // Application State
@@ -43,9 +44,9 @@ export default function App() {
   const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const [geolocationStatus, setGeolocationStatus] = useState<'idle' | 'prompt' | 'loading' | 'granted' | 'denied' | 'error'>('idle');
 
-  // Keys derived from build process.env properties
-  const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || "";
-  const AFRICAS_TALKING_KEY = process.env.AFRICAS_TALKING_API_KEY || "";
+  // Keys derived dynamically from server status or build configuration environment
+  const [googleMapsKey, setGoogleMapsKey] = useState<string>("");
+  const [africasTalkingKey, setAfricasTalkingKey] = useState<string>("");
 
   // Multi-Layout Systems
   const [currentLayout, setCurrentLayout] = useState<'bento' | 'minimal' | 'pulse' | 'hustle'>('bento');
@@ -196,6 +197,8 @@ export default function App() {
       setSegments(data.routeSegments || []);
       setCurrentScenario(data.currentScenario || "NORMAL");
       setGeminiStatus(data.geminiStatus || "SIMULATED_INTELLIGENCE");
+      if (data.googleMapsKey) setGoogleMapsKey(data.googleMapsKey);
+      if (data.africasTalkingKey) setAfricasTalkingKey(data.africasTalkingKey);
       setErrorMsg("");
     } catch (e: any) {
       console.error(e);
@@ -518,26 +521,14 @@ export default function App() {
                 </span>
               </div>
               
-              {GOOGLE_MAPS_KEY ? (
-                <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-                  <iframe
-                    title="Nairobi Minimal Route Map"
-                    width="100%"
-                    height="240"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    src={`https://www.google.com/maps/embed/v1/directions?key=${GOOGLE_MAPS_KEY}&origin=${encodeURIComponent(origin + " Nairobi")}&destination=${encodeURIComponent(destination + " Nairobi")}&mode=transit`}
-                  />
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-1">
-                  <MapPin className="w-5 h-5 text-slate-400 mx-auto animate-bounce" />
-                  <h5 className="font-bold text-xs text-slate-700">Google Directions Integration</h5>
-                  <p className="text-[10px] text-slate-400 max-w-sm mx-auto">
-                    Configure <code>GOOGLE_MAPS_PLATFORM_KEY</code> to enable real-time routing navigation graphics.
-                  </p>
-                </div>
-              )}
+              <InteractiveTransitMap
+                googleMapsKey={googleMapsKey}
+                origin={origin}
+                destination={destination}
+                stages={stages}
+                routingResult={routingResult}
+                height={240}
+              />
               
               {routingResult?.hops && routingResult.hops.length > 0 ? (
                 <div className="space-y-3">
@@ -919,26 +910,16 @@ export default function App() {
                 <h4 className="font-extrabold text-sm text-black">ACTIVE PATH MAP</h4>
                 <p className="text-xs text-slate-500 mt-1">Route is active. KES {routingResult?.telemetry?.total_estimated_fare || "200"} fee estimate.</p>
                 
-                {GOOGLE_MAPS_KEY ? (
-                  <div className="mt-3 overflow-hidden rounded-xl border border-black/30 shadow-md">
-                    <iframe
-                      title="Nairobi Route Live directions map"
-                      width="100%"
-                      height="210"
-                      style={{ border: 0 }}
-                      loading="lazy"
-                      src={`https://www.google.com/maps/embed/v1/directions?key=${GOOGLE_MAPS_KEY}&origin=${encodeURIComponent(origin + " Nairobi")}&destination=${encodeURIComponent(destination + " Nairobi")}&mode=transit`}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-3 p-3 bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl text-center space-y-1.5">
-                    <MapPin className="w-6 h-6 text-slate-400 mx-auto animate-bounce" />
-                    <h5 className="font-bold text-[11px] text-slate-700">Google Interactive Maps Sandbox</h5>
-                    <p className="text-[10px] text-slate-400 max-w-xs mx-auto leading-normal">
-                      Provide <code>GOOGLE_MAPS_PLATFORM_KEY</code> in Settings Secrets to render real directions.
-                    </p>
-                  </div>
-                )}
+                <div className="mt-3">
+                  <InteractiveTransitMap
+                    googleMapsKey={googleMapsKey}
+                    origin={origin}
+                    destination={destination}
+                    stages={stages}
+                    routingResult={routingResult}
+                    height={210}
+                  />
+                </div>
               </div>
 
               <div className="mt-4 bg-[#FAF9F5] border border-black p-3 rounded-lg text-xs leading-none shrink-0">

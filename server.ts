@@ -702,31 +702,40 @@ app.post("/api/mzee/chat", async (req, res) => {
         Here is our conversation history format for context:
         ${JSON.stringify(history || [], null, 2)}
         
-        Here is the list of official stages we support:
-        ${JSON.stringify(availableStageNames)}
+        Here is the rich list of official stages we support:
+        ${JSON.stringify(STAGES, null, 2)}
+
+        Here is the complete catalog of verified matatu routes and connections we support (with exact Route Numbers, operator/Sacco names, typical prices, and approximate durations):
+        ${JSON.stringify(ROUTE_SEGMENTS, null, 2)}
  
         Current transit scenario: "${currentScenario}"
         Real-time temporal context: "${retrieveTemporalEmbeddings(new Date().toISOString())}"
  
-        Your tasks:
-        1. Formulate a highly engaging, informative, and descriptive localized response (reply) in Mzee's authentic deep Swahili/Sheng Nairobi transit guide dialect.
-        2. Formulate a clear, elegant, and friendly English translation of your reply, preserving all vital details (fares, durations, hops, advisories, stage names) so that non-Swahili speakers can understand it perfectly. Put this under "englishTranslation".
-        3. Inspect if the user's message is asking for a route, or if they are clarifying their commute. If you detect they are specifying starting and ending locations, extract the exact matched stage names from our official stages list.
-        4. Determine a confidence score or probability of route success (probabilityScore) as an integer percentage from 0 to 100 based on the current transit scenario (e.g., congestion, crackdown, rainy day, etc.) and temporal context. If it is a general question, return a confidence rating.
-        5. Calculate the Estimated Totals in numeric fields inside "totals":
-           - "fare": Estimated total fare in KES (number)
-           - "duration": Estimated total duration in minutes (number)
-           - "hops": Number of transit drops/transfers (number)
+        Your tasks (CRITICAL INSTRUCTIONS FOR MZEE'S VOICE):
+        1. Formulate a highly engaging, informative, and humanizing response (reply) in Mzee's authentic deep Swahili/Sheng dialect.
+        2. Mzee MUST NOT just tell them to "board a matatu". Instead, give specific, step-by-step directional guidance!
+           - Tell them EXACTLY which stage to board at (e.g., Kawangware Stage, Westlands Stage).
+           - Name the EXACT Route Number (e.g., Route 46, Route 23, Route 111, Route 125, Route 34) and target Sacco/Operator (e.g., Kawangware Sacco, Super Metro, Ngong Travellers, Citi Hoppa) from the verified routes list.
+           - Detail the specific directions or landmarks along the trip (e.g., "Pitia Prestige along Ngong Road kisha ushuke Dagoretti Corner").
+        3. Mention the EXACT expected transit totals directly in Mzee's Swahili/Sheng message (reply) and in your English translation. Specifically, indicate:
+           - Total Fare in KES (e.g., KES 40, KES 80 etc. Use the exact figures or sums from the verified routes matched).
+           - Total Estimated Travel Time in minutes.
+           - Total transit hops/connections.
+           For example: "Utatoa jumla ya KES 40 pekee, safari itachukua kama dakika 10 na hakuna ku-transfer (hop 1)."
+        4. Formulate a clear, elegant, and friendly English translation of your reply under "englishTranslation", preserving all of these vital directional details (exact fares, Saccos, route numbers, durations, hops, and stages) so that non-Swahili speakers can understand it perfectly.
+        5. Inspect if the user's message is asking for a route. If you detect they are specifying starting and ending locations, extract the exact matched stage names from our official stages list.
+        6. Determine a confidence score or probability of route success (probabilityScore) as an integer percentage from 0 to 100 based on the current transit scenario (e.g., congestion, crackdown, rainy day, etc.) and temporal context.
+        7. Calculate the Estimated Totals in numeric fields inside "totals" structure, matching the exact figures you calculated.
  
         Your output MUST be strict JSON in this format:
         {
-          "reply": "your conversation reply as Mzee in authentic Swahili/Sheng",
-          "englishTranslation": "your graceful and complete English translation copy of Mzee's reply",
+          "reply": "your detailed, humanized conversation reply as Mzee in authentic Swahili/Sheng with exact Sacco, route numbers, directions, and expected totals",
+          "englishTranslation": "your graceful and complete English translation copy of Mzee's reply including all numerical transit details, Saccos, and step-by-step directions",
           "probabilityScore": 85,
           "totals": {
-            "fare": 150,
-            "duration": 45,
-            "hops": 2
+            "fare": 40,
+            "duration": 10,
+            "hops": 1
           },
           "detectedRoute": {
             "origin": "exact Stage Name from list or null",
@@ -815,8 +824,34 @@ app.post("/api/mzee/chat", async (req, res) => {
       duration: routeResult.hops?.reduce((acc: number, h: any) => acc + h.durationMinutes, 0) || 45,
       hops: routeResult.telemetry?.hops_count || routeResult.hops?.length || 1
     };
-    reply = `Mzee amepata safari yako ya kutoka ${localOrigin} kwenda ${localDest}. Safari hii itakugharimu takriban KES ${totals.fare} na kuchukua dakika ${totals.duration} ukitumia mathree ${totals.hops}. Probability ya safari salama kufika kwa wakati bila msongamano ni ${probabilityScore}%, kijana wangu!`;
-    englishTranslation = `Mzee found your trip from ${localOrigin} to ${localDest}. This trip will cost you about KES ${totals.fare} and take ${totals.duration} minutes using ${totals.hops} matatu(s). The probability of a safe, timely ride without heavy traffic jams is ${probabilityScore}%, my friend!`;
+
+    const swSteps: string[] = [];
+    const enSteps: string[] = [];
+
+    routeResult.hops.forEach((hop: any) => {
+      if (hop.type === "walk") {
+        swSteps.push(`tembea kutoka ${hop.from} hadi ${hop.to} (itachukua kama dakika ${hop.durationMinutes})`);
+        enSteps.push(`walk from ${hop.from} to ${hop.to} (takes about ${hop.durationMinutes} mins)`);
+      } else {
+        const matchingSeg = ROUTE_SEGMENTS.find(r => 
+          r.routeNumber === hop.route && 
+          r.origin.toLowerCase().includes(hop.from.toLowerCase().substring(0, 5))
+        ) || ROUTE_SEGMENTS.find(r => r.routeNumber === hop.route);
+
+        const opName = matchingSeg ? matchingSeg.operator : "Sacco inayohusika";
+        const notesStr = matchingSeg?.notes ? ` (Kumbuka: ${matchingSeg.notes})` : "";
+        const enNotesStr = matchingSeg?.notes ? ` (Note: ${matchingSeg.notes})` : "";
+
+        swSteps.push(`panda mathree Route ${hop.route} mwa ${opName} kutoka ${hop.from} hadi ${hop.to} kwa KES ${hop.fareEstimate} (kama dakika ${hop.durationMinutes})${notesStr}`);
+        enSteps.push(`board Route ${hop.route} matatu run by ${opName} from ${hop.from} to ${hop.to} for KES ${hop.fareEstimate} (takes about ${hop.durationMinutes} minutes)${enNotesStr}`);
+      }
+    });
+
+    const swStepsText = swSteps.join(", halafu ");
+    const enStepsText = enSteps.join(", then ");
+
+    reply = `Safi sana kijana! Safari ya kutoka ${localOrigin} hadi ${localDest} ni ya haraka sana. Utaratibu ndio huu: Kwanza ${swStepsText}. Kwa jumla, utatoa KES ${totals.fare} pekee na safari yote itachukua kama dakika ${totals.duration} na transitions ${totals.hops}. Barabara ni shwari leo bila mshikemshike, kwa hivyo utafika salama tuko na uwezekano wa ${probabilityScore}%! Mzee amethibitisha.`;
+    englishTranslation = `Excellent work my friend! The journey from ${localOrigin} to ${localDest} is highly efficient. Here are the step-by-step directions: First ${enStepsText}. In total, you expect to spend KES ${totals.fare}, traveling for about ${totals.duration} minutes with ${totals.hops} transfers. The road is smooth today with no major traffic, giving us a safety/timing probability of ${probabilityScore}%! Mzee has spoken.`;
   } else if (localOrigin) {
     reply = `Mzee amesikia umeanza safari kutoka ${localOrigin}. Lakini unaelekea wapi haswa? can you clarify?`;
     englishTranslation = `Mzee heard you are starting your trip from ${localOrigin}. But where exactly are you heading to? Can you clarify?`;
@@ -1184,7 +1219,9 @@ app.get("/api/system/status", (req, res) => {
     stages: STAGES,
     reports: crowdsourcedReports,
     routeSegments: ROUTE_SEGMENTS,
-    geminiStatus: ai ? "ACTIVE_SECURE" : "SIMULATED_INTELLIGENCE"
+    geminiStatus: ai ? "ACTIVE_SECURE" : "SIMULATED_INTELLIGENCE",
+    googleMapsKey: process.env.GOOGLE_MAPS_PLATFORM_KEY || "",
+    africasTalkingKey: process.env.AFRICAS_TALKING_API_KEY || ""
   });
 });
 
