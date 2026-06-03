@@ -36,6 +36,7 @@ The application adopts a standard **Full-Stack (Client-Server)** development top
 
 - **Backend Platform**: Node.js & Express.js
 - **Frontend Framework**: React 19 & TypeScript
+- **Interactive Maps Pipeline**: `@vis.gl/react-google-maps` (with unified WebGL/Polyline overlays)
 - **Styling Engine**: Tailwind CSS v4 & Lucide Icons
 - **Animation System**: Motion (`motion/react`)
 - **LLM/API Client**: `@google/genai` (utilizing Gemini models)
@@ -45,9 +46,14 @@ The application adopts a standard **Full-Stack (Client-Server)** development top
 
 ## ✨ Features
 
+- **Multi-Engine Interactive Route Map**:
+  - **Schematic Native Vector View (Default & Offline-Proof)**: A custom client-side reactive schematic tracker. Draws precise stage-to-stage connections, transit hops (labeled as Walk 👟 or specific Matatu Routes 🚌), and coordinate paths. This layer functions without a Google Maps API credential or configuration dependency.
+  - **Directions Embed Mode**: Houses a robust Google Maps v1 directions framework with custom-bound starting and end stages matching exact Nairobi metropolitan constraints.
+  - **WebGL Live Map**: Harnesses high-performance vector rendering and dynamic Polylines to automatically scale and center viewports on route hop coordinates. Utilizes modern Google Cloud advanced HTML markers (color-coded pins indicating Emerald for Origin, Red for Destination, and Blue for transit connections).
 - **Mzee Chat Box**: Interactive transit routing engine. Mzee converses in English, Swahili, or Nairobi Sheng, delivering step-by-step connection sequences, route indices (e.g. Route 23, Route 111), and estimated pricing.
 - **Crowdsourcing Webhook Platform**: Passengers can submit live transit interruptions or fare fluctuations directly.
 - **Environmental Presets Selector**: Commuters can simulate environmental presets such as "Drizzle/Heavy Mud Season", "National Holiday Rush", or "Transit Crackdown" to observe routing durability.
+- **Dynamic Key Distribution**: Dynamic runtime security logic pipes API secret credentials down on first initialization through `/api/system/status`, shielding valuable API keys (`GOOGLE_MAPS_PLATFORM_KEY` and `AFRICAS_TALKING_API_KEY`) from browser exposure or hardcoded front-end assets.
 - **Vibrant Matatu Network Register**: Extracted comprehensively from credible journalistic audits (including *Tuko.co.ke* route archives) detailing base stages of Kangemi, Westlands, Karen, Kasarani, and beyond.
 
 ---
