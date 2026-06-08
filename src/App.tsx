@@ -1023,8 +1023,8 @@ export default function App() {
       {currentLayout === 'bento' && (
         <>
           {/* Section A: Viewport-height landing page containing what Mzee is all about */}
-          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 min-h-[calc(100vh-80px)] flex flex-col justify-center py-6 md:py-10 relative">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 bg-[#163359] text-white rounded-3xl md:rounded-[40px] p-6 md:p-12 relative overflow-hidden shadow-2xl border border-blue-900/40">
+          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 lg:min-h-[calc(100vh-80px)] flex flex-col justify-center relative">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 bg-[#163359] text-white rounded-3xl md:rounded-[40px] p-5 sm:p-8 md:p-12 relative overflow-hidden shadow-2xl border border-blue-900/40">
               <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
               
               {/* Left Column - Mzee Core Definition & Setup */}
@@ -1034,11 +1034,11 @@ export default function App() {
                     ✨ CROWDSOURCED NAIROBI TRANSIT INTELLIGENCE
                   </span>
                   
-                  <h2 className="text-3xl md:text-6xl font-black tracking-tight leading-tight md:leading-none text-white font-sans">
+                  <h2 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tight leading-tight md:leading-none text-white font-sans">
                     Navigate Nairobi <br className="hidden md:inline" /> Like a Local.
                   </h2>
                   
-                  <p className="text-xs md:text-base text-blue-100/90 font-medium leading-relaxed max-w-2xl font-sans">
+                  <p className="text-xs sm:text-sm md:text-base text-blue-100/90 font-medium leading-relaxed max-w-2xl font-sans">
                     Mzee is the metropolitan route agent powered by localized conversational intelligence. 
                     Ask Mzee anything to instantly skip police crackdowns, dodge heavy rush-hour snarls, anticipate fare changes, and route safely through the city.
                   </p>
@@ -1055,21 +1055,21 @@ export default function App() {
                 </div>
 
                 {/* Environment Scenario Controls positioned right below the 'Ask Mzee Now' button */}
-                <div className="pt-6 border-t border-white/10 space-y-3.5 w-full">
+                <div className="pt-4 md:pt-6 border-t border-white/10 space-y-2.5 md:space-y-3.5 w-full">
                   <div>
-                    <h3 className="text-[10px] uppercase tracking-widest text-[#FAA92C] font-black flex items-center gap-2">
+                    <h3 className="text-[10px] md:text-xs uppercase tracking-widest text-[#FAA92C] font-black flex items-center gap-2">
                       <Activity className="w-4 h-4 text-[#FAA92C]" /> Real-time Scenario Configurator
                     </h3>
-                    <p className="text-xs text-blue-200/95 mt-1">
+                    <p className="text-[11px] md:text-xs text-blue-200/95 mt-0.5 md:mt-1">
                       Choose city conditions below to dynamically simulate mathree routes and fares:
                     </p>
                   </div>
                   
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-2.5 w-full">
                     <button
                       id="scenario-btn-normal"
                       onClick={() => handleUpdateScenario("NORMAL")}
-                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "NORMAL"
                           ? "bg-emerald-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
@@ -1080,35 +1080,35 @@ export default function App() {
                     <button
                       id="scenario-btn-rush"
                       onClick={() => handleUpdateScenario("RUSH_HOUR")}
-                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "RUSH_HOUR"
                           ? "bg-[#E9A93D] text-black shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      ⏰ Rush Hour (+30 KES)
+                      ⏰ Rush (+30 KES)
                     </button>
                     <button
                       id="scenario-btn-rain"
                       onClick={() => handleUpdateScenario("RAINY_DAY")}
-                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "RAINY_DAY"
                           ? "bg-blue-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      🌧️ Rain Chaos (2x Fare)
+                      🌧️ Rain (2x Fare)
                     </button>
                     <button
                       id="scenario-btn-crackdown"
                       onClick={() => handleUpdateScenario("CRACKDOWN")}
-                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-extrabold text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "CRACKDOWN"
                           ? "bg-red-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      👮 Crackdowns (NTSA)
+                      👮 Crackdown (NTSA)
                     </button>
                   </div>
                 </div>
