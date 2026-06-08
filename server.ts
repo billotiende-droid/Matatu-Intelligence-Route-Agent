@@ -176,6 +176,114 @@ const smsSessions: Record<string, SMSSession> = {};
 // Active Simulation Scenario
 let currentScenario: SimulationScenario = "NORMAL";
 
+// Real-time Nairobi Weather State
+let cachedWeather: {
+  temperature: number;
+  weatherCode: number;
+  condition: string;
+  emoji: string;
+  isRainy: boolean;
+  fetchedAt: string;
+} | null = null;
+let lastWeatherFetchTime = 0;
+
+async function fetchNairobiWeather() {
+  const now = Date.now();
+  // Cache for 5 minutes (300,000 ms)
+  if (cachedWeather && (now - lastWeatherFetchTime < 300000)) {
+    return cachedWeather;
+  }
+
+  try {
+    const response = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-1.2921&longitude=36.8219&current_weather=true&timezone=Africa/Nairobi");
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.current_weather) {
+        const cw = data.current_weather;
+        const code = cw.weathercode;
+        const temp = cw.temperature;
+        
+        let condition = "Sunny";
+        let emoji = "☀️";
+        let isRainy = false;
+
+        // WMO weather codes for rain: drizzle, rain, freezing rain, showers, thunderstorm
+        if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
+          condition = "Raining";
+          emoji = "🌧️";
+          isRainy = true;
+        } else if ([1, 2, 3].includes(code)) {
+          condition = "Partly Cloudy";
+          emoji = "☁️";
+        } else if ([45, 48].includes(code)) {
+          condition = "Foggy";
+          emoji = "🌫️";
+        } else {
+          condition = "Clear Sky";
+          emoji = "☀️";
+        }
+
+        cachedWeather = {
+          temperature: temp,
+          weatherCode: code,
+          condition,
+          emoji,
+          isRainy,
+          fetchedAt: new Date().toISOString()
+        };
+        lastWeatherFetchTime = now;
+
+        // Sync crowdsourced rain reports dynamically if active live rain is detected
+        // First filter out simulation rain reports to prevent duplication:
+        crowdsourcedReports = crowdsourcedReports.filter(r => r.id !== "sim-rain-1" && r.id !== "sim-rain-2");
+        if (isRainy) {
+          crowdsourcedReports.push({
+            id: "sim-rain-1",
+            stage: "Kencom/Archives",
+            status: "rain_disruption",
+            fareMultiplier: 1.8,
+            confidence: 0.98,
+            description: `LIVE NAIROBI WEATHER ALERT: Rainy conditions detected in CBD (${temp}°C). Ground routes are extremely flooded. Fares spiked!`,
+            timestamp: new Date().toISOString(),
+            reporterReputation: 0.99
+          });
+          crowdsourcedReports.push({
+            id: "sim-rain-2",
+            stage: "Outer Ring Interchange",
+            status: "rain_disruption",
+            fareMultiplier: 1.6,
+            confidence: 0.92,
+            description: `LIVE WEATHER ALERT: Rainy conditions on Outer Ring Road (${temp}°C). Water accumulation causing heavy slowdowns.`,
+            timestamp: new Date().toISOString(),
+            reporterReputation: 0.95
+          });
+        }
+
+        return cachedWeather;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching Nairobi weather:", error);
+  }
+
+  // Fallback
+  if (!cachedWeather) {
+    cachedWeather = {
+      temperature: 21.5,
+      weatherCode: 1,
+      condition: "Partly Cloudy",
+      emoji: "☁️",
+      isRainy: false,
+      fetchedAt: new Date().toISOString()
+    };
+  }
+  return cachedWeather;
+}
+
+function isNairobiRainy() {
+  return cachedWeather ? cachedWeather.isRainy : false;
+}
+
 // Helper tool executables
 function getNearbyStages(lat: number, lng: number) {
   // Simple bounding distance formula
@@ -228,11 +336,14 @@ function estimateDynamicFare(route: RouteSegment, timeContext: string, activeMul
   // Apply Scenario Multipliers
   if (currentScenario === "RUSH_HOUR") {
     baseMultiplier = 1.4;
-  } else if (currentScenario === "RAINY_DAY") {
-    baseMultiplier = 1.8;
   } else if (currentScenario === "CRACKDOWN") {
     // Fares spike due to fewer vehicles
     baseMultiplier = 1.3;
+  }
+
+  // If actual weather in Nairobi is rainy, apply weather premium
+  if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
+    baseMultiplier = 1.8;
   }
 
   const calculated = Math.ceil(route.baseFare * baseMultiplier * activeMultiplier);
@@ -256,15 +367,18 @@ function detectDisruptions(routeSegmentId: string) {
     }
   });
 
-  // Scenario specific disruptions
+  // Scenario specific disruptions (or actual live rain disruptions)
   if (currentScenario === "RUSH_HOUR") {
     disruptions.push("Heavy evening traffic bottleneck on all major routes leading out of CBD");
-  } else if (currentScenario === "RAINY_DAY") {
-    disruptions.push("Substantial flooding near Globe Roundabout and Accra Road causing static traffic logs");
   } else if (currentScenario === "CRACKDOWN") {
     if (segment.origin.toLowerCase().includes("kawangware") || segment.destination.toLowerCase().includes("kencom")) {
       disruptions.push("POLICE OPERATION: Sacco crackdown on Ngong Road. Commuters being dropped early near Kilimani.");
     }
+  }
+
+  if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
+    const tempText = cachedWeather ? ` (${cachedWeather.temperature}°C)` : "";
+    disruptions.push(`LIVE NAIROBI WEATHER ALERT: Heavy rainfall detected${tempText}. Substantial flooding near Globe Roundabout and Accra Road causing static traffic logs`);
   }
 
   // De-duplicate
@@ -272,17 +386,19 @@ function detectDisruptions(routeSegmentId: string) {
 }
 
 function retrieveTemporalEmbeddings(timeContext: string) {
-  // Simulated semantic lookup depending on scenario
+  // Simulated semantic lookup depending on scenario and real weather
   if (currentScenario === "RUSH_HOUR") {
     return "Commuter surge. Archives is congested. Mathrees charging double fare. Alternatives suggested via walking to Tea Room.";
-  }
-  if (currentScenario === "RAINY_DAY") {
-    return "Heavy rain has flooded key intersections. Archives and Nairobi River paths are extremely muddy. Transit speeds down 60%.";
   }
   if (currentScenario === "CRACKDOWN") {
     return "Traffic police checkpoints at Prestige. Unlicensed mathrees refusing Ngong Rd runs. Normal security checks on other pathways.";
   }
-  return "Sunny afternoon conditions. Transit flow is optimal. Commuter volumes are standard.";
+  if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
+    const tempText = cachedWeather ? ` (${cachedWeather.temperature}°C)` : "";
+    return `Heavy rain has flooded key intersections${tempText}. Archives and Nairobi River paths are extremely muddy. Transit speeds down 60%.`;
+  }
+  const tempText = cachedWeather ? ` Live weather in Nairobi is currently ${cachedWeather.condition} at ${cachedWeather.temperature}°C.` : "";
+  return `Sunny afternoon conditions. Transit flow is optimal. Commuter volumes are standard.${tempText}`;
 }
 
 // Scenario applicator helper
@@ -451,14 +567,14 @@ function resolveRouteWithAgentLogic(origin: string, destination: string): RouteQ
       to: "Kencom/Archives",
       route: seg1.routeNumber,
       fareEstimate: fare1,
-      durationMinutes: currentScenario === "RUSH_HOUR" ? 55 : currentScenario === "RAINY_DAY" ? 70 : 35,
+      durationMinutes: currentScenario === "RUSH_HOUR" ? 55 : (currentScenario === "RAINY_DAY" || isNairobiRainy()) ? 70 : 35,
       disruptions: dis1
     });
 
     // Hop 2: CBD Walking transition (Archives to Accra Rd)
     const walkDistance = calculateTransferDistance("Kencom/Archives", "Accra Road");
     let walkDisruption: string[] = [];
-    if (currentScenario === "RAINY_DAY") {
+    if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
       walkDisruption.push("Nairobi River drainage flooded, pathways very muddy. Use Accra Rd standard sidewalks.");
     }
 
@@ -467,7 +583,7 @@ function resolveRouteWithAgentLogic(origin: string, destination: string): RouteQ
       from: "Kencom/Archives",
       to: "Accra Road",
       fareEstimate: 0,
-      durationMinutes: currentScenario === "RAINY_DAY" ? 12 : 6,
+      durationMinutes: (currentScenario === "RAINY_DAY" || isNairobiRainy()) ? 12 : 6,
       disruptions: walkDisruption
     });
 
@@ -484,12 +600,12 @@ function resolveRouteWithAgentLogic(origin: string, destination: string): RouteQ
       to: destStage.name,
       route: seg2.routeNumber,
       fareEstimate: fare2,
-      durationMinutes: currentScenario === "RUSH_HOUR" ? 75 : currentScenario === "RAINY_DAY" ? 95 : 50,
+      durationMinutes: currentScenario === "RUSH_HOUR" ? 75 : (currentScenario === "RAINY_DAY" || isNairobiRainy()) ? 95 : 50,
       disruptions: dis2
     });
 
     // Confidence penalties
-    if (currentScenario === "RAINY_DAY") {
+    if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
       confidence -= 0.15;
     }
     if (currentScenario === "CRACKDOWN") {
@@ -508,14 +624,15 @@ function resolveRouteWithAgentLogic(origin: string, destination: string): RouteQ
 
     // Build perfect localized mzee SMS response
     let sms_response = "";
-    if (currentScenario === "NORMAL") {
-      sms_response = `Panda mat ya Kawangware Route 46 hadi Gen Archives (80 KES). Tembea Nairobi Accra Rd. Panda Ruai Route 120 (120 KES). Njia swari! Mzee out.`;
+    if (currentScenario === "RAINY_DAY" || isNairobiRainy()) {
+      const tempText = cachedWeather ? ` (${cachedWeather.temperature}°C)` : "";
+      sms_response = `Mvua imeleta balaa town${tempText}. Panda ya Kawangware mapema (KES 150). Shuka Archives, tembea kwa uangalifu upande wa Accra Road kwasababu ya matope. Nauli ya Ruai imepanda sana, fare est KES 200-220. Kuvumilia ndio msingi!`;
     } else if (currentScenario === "RUSH_HOUR") {
       sms_response = `Panda mat ya Kawangware CBD (Route 46). Shuka Archives. Tembea haraka upande wa Accra Rd, fika mapema kuzuia msongamano. Mat 120 ya Ruai ni 160 KES juu ya rush hour. Pila shaka!`;
-    } else if (currentScenario === "RAINY_DAY") {
-      sms_response = `Mvua imeleta balaa town. Panda ya Kawangware mapema (KES 150). Shuka Archives, tembea kwa uangalifu upande wa Accra Road kwasababu ya matope. Nauli ya Ruai imepanda sana, fare est KES 200-220. Kuvumilia ndio msingi!`;
     } else if (currentScenario === "CRACKDOWN") {
       sms_response = `Ngong Rd inadaiwa crackdown kubwa ya polisi! Kwa usalama wako, panda route mbadala au shuka Adams Arcade badala ya kuelekea Prestige. Archives fika uende Accra Rd upande Ruai (Route 120, KES 120). Ka mshikemshike!`;
+    } else {
+      sms_response = `Panda mat ya Kawangware Route 46 hadi Gen Archives (80 KES). Tembea Nairobi Accra Rd. Panda Ruai Route 120 (120 KES). Njia swari! Mzee out.`;
     }
 
     const totalFare = finalHops.reduce((sum, h) => sum + h.fareEstimate, 0);
@@ -552,7 +669,7 @@ function resolveRouteWithAgentLogic(origin: string, destination: string): RouteQ
         to: destStage.name,
         route: directRoute.routeNumber,
         fareEstimate: tfare,
-        durationMinutes: directRoute.typicalDurationMinutes * (currentScenario === "RUSH_HOUR" ? 1.5 : currentScenario === "RAINY_DAY" ? 2.0 : 1.0),
+        durationMinutes: directRoute.typicalDurationMinutes * (currentScenario === "RUSH_HOUR" ? 1.5 : (currentScenario === "RAINY_DAY" || isNairobiRainy()) ? 2.0 : 1.0),
         disruptions: dis
       });
 
@@ -1210,7 +1327,8 @@ app.post("/api/sms/session", async (req, res) => {
 });
 
 // 4. Get System Status & Knowledge Base States
-app.get("/api/system/status", (req, res) => {
+app.get("/api/system/status", async (req, res) => {
+  const weather = await fetchNairobiWeather();
   return res.json({
     currentScenario,
     stagesCount: STAGES.length,
@@ -1221,7 +1339,8 @@ app.get("/api/system/status", (req, res) => {
     routeSegments: ROUTE_SEGMENTS,
     geminiStatus: ai ? "ACTIVE_SECURE" : "SIMULATED_INTELLIGENCE",
     googleMapsKey: process.env.GOOGLE_MAPS_PLATFORM_KEY || "",
-    africasTalkingKey: process.env.AFRICAS_TALKING_API_KEY || ""
+    africasTalkingKey: process.env.AFRICAS_TALKING_API_KEY || "",
+    nairobiWeather: weather
   });
 });
 
@@ -1257,8 +1376,17 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    try {
+      console.log("Pre-fetching actual Nairobi weather...");
+      await fetchNairobiWeather();
+      if (cachedWeather) {
+        console.log(`Nairobi current weather: ${cachedWeather.condition}, ${cachedWeather.temperature}°C`);
+      }
+    } catch (e) {
+      console.error("Failed to prefetch weather on boot", e);
+    }
   });
 }
 

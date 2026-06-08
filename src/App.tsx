@@ -37,6 +37,14 @@ export default function App() {
   const [geminiStatus, setGeminiStatus] = useState<string>("SIMULATED_INTELLIGENCE");
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [nairobiWeather, setNairobiWeather] = useState<{
+    temperature: number;
+    weatherCode: number;
+    condition: string;
+    emoji: string;
+    isRainy: boolean;
+    fetchedAt: string;
+  } | null>(null);
 
   // Geolocation and Key Configurations
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -197,6 +205,7 @@ export default function App() {
       setSegments(data.routeSegments || []);
       setCurrentScenario(data.currentScenario || "NORMAL");
       setGeminiStatus(data.geminiStatus || "SIMULATED_INTELLIGENCE");
+      if (data.nairobiWeather) setNairobiWeather(data.nairobiWeather);
       if (data.googleMapsKey) setGoogleMapsKey(data.googleMapsKey);
       if (data.africasTalkingKey) setAfricasTalkingKey(data.africasTalkingKey);
       setErrorMsg("");
@@ -628,8 +637,8 @@ export default function App() {
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
                   <span className="text-[10px] text-slate-400 font-bold uppercase">Rain Impact Index</span>
-                  <p className="text-2xl font-extrabold text-emerald-600 mt-1">
-                    {currentScenario === "RAINY_DAY" ? "Severe Flooding" : "Neutral"}
+                  <p className="text-sm md:text-base font-extrabold text-emerald-600 mt-1.5 truncate">
+                    {nairobiWeather?.isRainy ? "🌧️ Severe (2x Fares)" : "☀️ Neutral (Normal Fares)"}
                   </p>
                 </div>
               </div>
@@ -1030,9 +1039,29 @@ export default function App() {
               {/* Left Column - Mzee Core Definition & Setup */}
               <div className="col-span-12 lg:col-span-8 flex flex-col justify-between space-y-6 relative z-10">
                 <div className="space-y-4">
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3.5 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-normal">
-                    ✨ CROWDSOURCED NAIROBI TRANSIT INTELLIGENCE
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3 py-1 md:px-3.5 md:py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-normal">
+                      ✨ CROWDSOURCED NAIROBI TRANSIT INTELLIGENCE
+                    </span>
+                    
+                    {/* Stylish Climate Telemetry Pill */}
+                    <div 
+                      title={nairobiWeather ? `Nairobi CBD Station • Fetched at ${new Date(nairobiWeather.fetchedAt).toLocaleTimeString()}` : "Nairobi Live Weather telemetry"}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 md:px-3.5 md:py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all select-none ${
+                        nairobiWeather?.isRainy 
+                          ? "bg-blue-500/20 border-blue-400/40 text-blue-300 animate-pulse" 
+                          : "bg-white/10 border-white/15 text-[#FAA92C]"
+                      }`}
+                    >
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${nairobiWeather?.isRainy ? "bg-blue-400" : "bg-[#FAA92C]"} opacity-75`}></span>
+                        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${nairobiWeather?.isRainy ? "bg-blue-500" : "bg-[#FAA92C]"}`}></span>
+                      </span>
+                      <span>
+                        {nairobiWeather?.emoji || "☀️"} {nairobiWeather ? `${nairobiWeather.temperature}°C` : "21.5°C"} • <span className="text-white/80">{nairobiWeather ? nairobiWeather.condition : "Clear"}</span>
+                      </span>
+                    </div>
+                  </div>
                   
                   <h2 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tight leading-tight md:leading-none text-white font-sans">
                     Navigate Nairobi <br className="hidden md:inline" /> Like a Local.
@@ -1065,50 +1094,42 @@ export default function App() {
                     </p>
                   </div>
                   
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-2.5 w-full">
+                  <div className="grid grid-cols-3 gap-2 md:gap-3 w-full">
                     <button
                       id="scenario-btn-normal"
                       onClick={() => handleUpdateScenario("NORMAL")}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1 px-1 py-3 md:px-4 md:py-3.5 rounded-xl font-extrabold text-[10px] sm:text-[11px] md:text-xs tracking-wider uppercase transition-all cursor-pointer hover:scale-[1.01] ${
                         currentScenario === "NORMAL"
-                          ? "bg-emerald-500 text-white shadow-lg"
+                          ? "bg-emerald-500 text-white shadow-lg font-black"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      ☀️ Normal (70 KES)
+                      <span>☀️ Normal</span>
+                      <span className="hidden sm:inline opacity-90 text-[10px] md:text-xs italic bg-black/10 px-1.5 py-0.5 rounded ml-1">(70 KES)</span>
                     </button>
                     <button
                       id="scenario-btn-rush"
                       onClick={() => handleUpdateScenario("RUSH_HOUR")}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1 px-1 py-3 md:px-4 md:py-3.5 rounded-xl font-extrabold text-[10px] sm:text-[11px] md:text-xs tracking-wider uppercase transition-all cursor-pointer hover:scale-[1.01] ${
                         currentScenario === "RUSH_HOUR"
-                          ? "bg-[#E9A93D] text-black shadow-lg"
+                          ? "bg-[#E9A93D] text-black shadow-lg font-black"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      ⏰ Rush (+30 KES)
-                    </button>
-                    <button
-                      id="scenario-btn-rain"
-                      onClick={() => handleUpdateScenario("RAINY_DAY")}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
-                        currentScenario === "RAINY_DAY"
-                          ? "bg-blue-500 text-white shadow-lg"
-                          : "bg-white/10 hover:bg-white/15 text-white/90"
-                      }`}
-                    >
-                      🌧️ Rain (2x Fare)
+                      <span>⏰ Rush Hour</span>
+                      <span className="hidden sm:inline opacity-90 text-[10px] md:text-xs italic bg-black/10 px-1.5 py-0.5 rounded ml-1">(+30 KES)</span>
                     </button>
                     <button
                       id="scenario-btn-crackdown"
                       onClick={() => handleUpdateScenario("CRACKDOWN")}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1 px-1 py-3 md:px-4 md:py-3.5 rounded-xl font-extrabold text-[10px] sm:text-[11px] md:text-xs tracking-wider uppercase transition-all cursor-pointer hover:scale-[1.01] ${
                         currentScenario === "CRACKDOWN"
-                          ? "bg-red-500 text-white shadow-lg"
+                          ? "bg-red-500 text-white shadow-lg font-black"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
                       }`}
                     >
-                      👮 Crackdown (NTSA)
+                      <span>👮 Crackdown</span>
+                      <span className="hidden sm:inline opacity-90 text-[10px] md:text-xs italic bg-black/10 px-1.5 py-0.5 rounded ml-1">(NTSA)</span>
                     </button>
                   </div>
                 </div>
