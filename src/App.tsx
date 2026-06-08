@@ -1065,11 +1065,11 @@ export default function App() {
                     </p>
                   </div>
                   
-                  <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-2.5 w-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-2.5 w-full">
                     <button
                       id="scenario-btn-normal"
                       onClick={() => handleUpdateScenario("NORMAL")}
-                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "NORMAL"
                           ? "bg-emerald-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
@@ -1080,7 +1080,7 @@ export default function App() {
                     <button
                       id="scenario-btn-rush"
                       onClick={() => handleUpdateScenario("RUSH_HOUR")}
-                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "RUSH_HOUR"
                           ? "bg-[#E9A93D] text-black shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
@@ -1091,7 +1091,7 @@ export default function App() {
                     <button
                       id="scenario-btn-rain"
                       onClick={() => handleUpdateScenario("RAINY_DAY")}
-                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "RAINY_DAY"
                           ? "bg-blue-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
@@ -1102,7 +1102,7 @@ export default function App() {
                     <button
                       id="scenario-btn-crackdown"
                       onClick={() => handleUpdateScenario("CRACKDOWN")}
-                      className={`w-full md:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-extrabold text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer ${
                         currentScenario === "CRACKDOWN"
                           ? "bg-red-500 text-white shadow-lg"
                           : "bg-white/10 hover:bg-white/15 text-white/90"
