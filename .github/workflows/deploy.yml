@@ -56,4 +56,5 @@ jobs:
           --region europe-west2 \
           --project=$PROJECT_ID \
           --platform managed \
-          --allow-unauthenticated
+          --allow-unauthenticated \
+          --clear-sources
