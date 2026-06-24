@@ -21,23 +21,8 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    - name: Remove stale source annotations (Fixes Cloud Run Validation Error)
+    - name: Configure Google Cloud CLI
       run: |
-        # Resolve the active project ID from secrets or extracted authentication context
-        PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
-        if [ -z "$PROJECT_ID" ]; then
-          PROJECT_ID="${{ steps.auth.outputs.project_id }}"
-        fi
-        
-        gcloud run services update matatu-route-intelligence-agent \
-          --remove-annotations=run.googleapis.com/sources \
-          --region=europe-west2 \
-          --project=$PROJECT_ID \
-          --platform=managed || echo "Annotation cleanup skipped (e.g. if service doesn't exist yet or is already clean)."
-
-    - name: Build and Deploy to Cloud Run
-      run: |
-        # Resolve the active project ID from secrets or extracted authentication context
         PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
         if [ -z "$PROJECT_ID" ]; then
           PROJECT_ID="${{ steps.auth.outputs.project_id }}"
@@ -48,13 +33,26 @@ jobs:
           exit 1
         fi
         
+        echo "Configuring gcloud default project to: $PROJECT_ID"
+        gcloud config set project "$PROJECT_ID"
+        echo "PROJECT_ID=$PROJECT_ID" >> $GITHUB_ENV
+
+    - name: Remove stale source annotations (Fixes Cloud Run Validation Error)
+      run: |
+        gcloud run services update matatu-route-intelligence-agent \
+          --remove-annotations=run.googleapis.com/sources \
+          --region=europe-west2 \
+          --platform=managed || echo "Annotation cleanup skipped (e.g. if service doesn't exist yet or is already clean)."
+
+    - name: Build and Deploy to Cloud Run
+      run: |
         echo "Deploying to Google Cloud Project: $PROJECT_ID"
         
-        gcloud builds submit --tag gcr.io/$PROJECT_ID/matatu-route-intelligence-agent:latest --project=$PROJECT_ID
+        gcloud builds submit --tag gcr.io/$PROJECT_ID/matatu-route-intelligence-agent:latest
+        
         gcloud run deploy matatu-route-intelligence-agent \
           --image gcr.io/$PROJECT_ID/matatu-route-intelligence-agent:latest \
           --region europe-west2 \
-          --project=$PROJECT_ID \
           --platform managed \
           --allow-unauthenticated \
           --clear-sources
