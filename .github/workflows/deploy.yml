@@ -41,6 +41,7 @@ jobs:
       run: |
         gcloud run services update matatu-route-intelligence-agent \
           --remove-annotations=run.googleapis.com/sources \
+          --remove-template-annotations=run.googleapis.com/sources \
           --region=europe-west2 \
           --platform=managed || echo "Annotation cleanup skipped (e.g. if service doesn't exist yet or is already clean)."
 
@@ -54,5 +55,4 @@ jobs:
           --image gcr.io/$PROJECT_ID/matatu-route-intelligence-agent:latest \
           --region europe-west2 \
           --platform managed \
-          --allow-unauthenticated \
-          --clear-sources
+          --allow-unauthenticated
